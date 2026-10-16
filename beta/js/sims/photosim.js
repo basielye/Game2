@@ -136,7 +136,17 @@ const PhotoSim = (() => {
     // 3 · clothing below the chin
     const shirt = median(region(fx0 - fw * .3, fy0 + fh * 1.25, fx0 + fw * 1.3, fy0 + fh * 2.1, c => !isSkin(...c) && dist(c, bg) > 30 && (!hairC || dist(c, hairC) > 30)));
 
-    // map onto Sim options
+    // 4 · the whole person: colour-model segmentation seeded from the face and chest
+    const cxF = fx0 + fw / 2, chinY = fy0 + fh * .98;
+    let poly = opt.poly ? opt.poly.map(([x, y]) => [x * W, y * H]) : null;
+    if (!poly) poly = segmentPerson(at, W, H, fx0, fy0, fw, fh, skin);
+    const pmask = new Uint8Array(W * H);
+    let pyMax = 0;
+    { let x0 = W, x1 = 0, y0 = H, y1 = 0; for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+      for (let y = Math.max(0, Math.floor(y0)); y < Math.min(H, Math.ceil(y1)); y++) for (let x = Math.max(0, Math.floor(x0)); x < Math.min(W, Math.ceil(x1)); x++) if (pip(x + .5, y + .5, poly)) { pmask[y * W + x] = 1; pyMax = Math.max(pyMax, y); } }
+    const pick = (xa, xb, ya, yb, pred) => { const out = []; for (let y = Math.max(0, Math.round(ya)); y < Math.min(H, Math.round(yb)); y++) for (let x = Math.max(0, Math.round(xa)); x < Math.min(W, Math.round(xb)); x++) { if (!pmask[y * W + x]) continue; const c = at(x, y); if (!pred || pred(c, x, y)) out.push(c); } return out; };
+    const cloth = clothing(at, pmask, W, H, cxF, chinY, fw, fh, pyMax, skin, hairC);
+
     const [, hs, hl] = hairC ? hsl(hairC) : [0, 0, 0];
     const grey = hairC && hs < .12 && hl > .58 && hl < .9;
     let hair;
@@ -147,11 +157,121 @@ const PhotoSim = (() => {
     const beard = ratio < .72 && jawSkin < .55 ? 'beard' : ratio < .86 && jawSkin < .8 ? 'stubble' : null;
     const result = {
       found, skin: stylise(skin, 1.05, lum(skin) < 170 ? .08 : .03), hairColor: hairC ? stylise(hairC, 1.25, grey ? .05 : -.02) : '#5a3a22', hair, beard,
-      age: grey ? 'elder' : 'adult', topColor: shirt ? stylise(shirt, 1.2) : null,
+      age: grey ? 'elder' : 'adult', topColor: cloth.topColor ? stylise(cloth.topColor, 1.15) : shirt ? stylise(shirt, 1.2) : null,
+      cloth, poly: poly.map(([x, y]) => [x / W, y / H]),
+      outfit: cloth.top ? { top: cloth.top, sleeves: cloth.sleeves, neck: cloth.neck, pattern: cloth.pattern, topColor2: cloth.topColor2 ? stylise(cloth.topColor2, 1.15) : null,
+        bottom: cloth.bottom, bottomColor: cloth.bottomColor ? stylise(cloth.bottomColor, 1.1) : null } : null,
       crop: [cx0, cy0, cw0, ch0], picked: opt.hair || null,
       debug: { cv, box: [fx0 / W, fy0 / H, fw / W, fh / H], hairAbove, ringFrac, longL, longR, ratio, jawSkin, clusters: cl.map(c => toHex(c.c) + ':' + c.n + '/' + Math.round(c.w)) }
     };
     return result;
+  }
+  function pip(x, y, poly) {
+    let ins = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) ins = !ins; }
+    return ins;
+  }
+  /* Person outline: foreground/background colour models + spatial prior, then the outer contour as a polygon. */
+  function segmentPerson(at, W, H, fx0, fy0, fw, fh, skin) {
+    const cx = fx0 + fw / 2, inB = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
+    const fg = [], bg = [];
+    for (let y = fy0; y < fy0 + fh; y += 2) for (let x = fx0; x < fx0 + fw; x += 2) if (inB(x, y)) fg.push(at(x, y));
+    const ty0 = fy0 + fh * 1.15, ty1 = Math.min(H - 1, fy0 + fh * 2.4);
+    for (let y = ty0; y < ty1; y += 2) for (let x = cx - fw * .55; x < cx + fw * .55; x += 2) if (inB(Math.round(x), Math.round(y))) fg.push(at(Math.round(x), Math.round(y)));
+    for (let x = 0; x < W; x += 2) for (const y of [0, 1, 2, H - 1]) if (Math.abs(x - cx) > fw * 1.2) bg.push(at(x, y));
+    for (let y = 0; y < H; y += 2) for (const x of [0, 1, 2, W - 2, W - 1]) bg.push(at(x, y));
+    for (let y = 0; y < H; y += 3) for (let x = 0; x < W; x += 3) if (Math.abs(x - cx) > fw * 2.3) bg.push(at(x, y));
+    const fgC = kmeansLite(fg, 6), bgC = kmeansLite(bg, 7);
+    const near = (c, cs) => cs.reduce((m, k) => Math.min(m, dist(c, k)), 1e9);
+    const m = new Uint8Array(W * H), top = Math.max(0, Math.round(fy0 - fh * .5));
+    for (let y = top; y < H; y++) for (let x = 0; x < W; x++) {
+      const dx = Math.abs(x - cx) / fw;
+      if (dx > 2.4) continue;
+      const c = at(x, y), prior = (dx > 1.5 ? (dx - 1.5) * 40 : 0) + (y < fy0 - fh * .1 ? 18 : 0);
+      if (near(c, fgC) + prior < near(c, bgC) * .95) m[y * W + x] = 1;
+    }
+    // certain regions
+    for (let y = fy0; y < fy0 + fh; y++) for (let x = fx0; x < fx0 + fw; x++) if (inB(x, y) && ((x - cx) / (fw / 2)) ** 2 + ((y - fy0 - fh / 2) / (fh / 2)) ** 2 <= 1) m[y * W + x] = 1;
+    for (let y = Math.round(ty0); y < ty1; y++) for (let x = Math.round(cx - fw * .45); x < cx + fw * .45; x++) if (inB(x, y)) m[y * W + x] = 1;
+    // keep the component connected to the chest
+    const keep = new Uint8Array(W * H), sx = Math.round(cx), sy = Math.round(Math.min(H - 1, fy0 + fh * 1.5)), st = [sy * W + sx]; keep[st[0]] = 1;
+    while (st.length) { const j = st.pop(), x = j % W; for (const k of [j - 1, j + 1, j - W, j + W]) if (k >= 0 && k < W * H && m[k] && !keep[k] && Math.abs((k % W) - x) <= 1) { keep[k] = 1; st.push(k); } }
+    // contour from row extents (fills holes and smooths)
+    let yTop = H, yBot = 0; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (keep[y * W + x]) { yTop = Math.min(yTop, y); yBot = Math.max(yBot, y); }
+    if (yTop >= yBot) return [[fx0 - fw * .2, fy0 - fh * .2], [fx0 + fw * 1.2, fy0 - fh * .2], [cx + fw * 1.3, H - 1], [cx - fw * 1.3, H - 1]];
+    const L = [], R = [], step = Math.max(2, Math.round((yBot - yTop) / 15));
+    for (let y = yTop; y <= yBot; y += step) {
+      let a = -1, b = -1; for (let x = 0; x < W; x++) if (keep[y * W + x]) { if (a < 0) a = x; b = x; }
+      if (a >= 0) { L.push([a - .5, y]); R.push([b + .5, y]); }
+    }
+    // light smoothing of the edges
+    const sm = arr => arr.map((p, i) => i === 0 || i === arr.length - 1 ? p : [(arr[i - 1][0] + p[0] * 2 + arr[i + 1][0]) / 4, p[1]]);
+    const l = sm(L), r = sm(R);
+    return [[cx, yTop - 1]].concat(r, l.reverse());
+  }
+  function kmeansLite(pts, k) { if (pts.length > 600) { const s = []; for (let i = 0; i < 600; i++) s.push(pts[Math.floor(i / 600 * pts.length)]); pts = s; } return kmeans(pts, k).map(c => c.c); }
+  /* Garment details from the person mask: colours, pattern, sleeves, neckline, jacket, bottoms. */
+  function clothing(at, mask, W, H, cx, chinY, fw, fh, yMax, skin, hairC) {
+    const get = (xa, xb, ya, yb, step = 1) => { const out = []; for (let y = Math.max(0, Math.round(ya)); y < Math.min(H, Math.round(yb)); y += step) for (let x = Math.max(0, Math.round(xa)); x < Math.min(W, Math.round(xb)); x += step) if (mask[y * W + x]) out.push({ c: at(x, y), x, y }); return out; };
+    const skinish = c => isSkin(...c) && dist(c, skin) < 70;
+    const frac = (arr, f) => arr.length ? arr.filter(p => f(p.c)).length / arr.length : null;
+    const tTop = chinY + fh * .08, tBot = Math.min(yMax, chinY + fh * 2.3);
+    const torso = get(cx - fw * .78, cx + fw * .78, tTop, tBot);
+    const clothPx = torso.filter(p => !skinish(p.c) && (!hairC || dist(p.c, hairC) > 30 || Math.abs(p.x - cx) < fw * .45));
+    const out = { top: null, sleeves: null, neck: 'crew', pattern: 'solid', topColor: null, topColor2: null, bottom: null, bottomColor: null, detail: {} };
+    if (clothPx.length < 20) return out;
+    const cls = kmeans(clothPx.map(p => p.c), 3);
+    const total = cls.reduce((a, c) => a + c.n, 0), c0 = cls[0], c1 = cls.find((c, i) => i > 0 && c.n > total * .14 && dist(c.c, c0.c) > 48);
+    out.topColor = c0.c;
+    // pattern: label a grid of torso samples as main / second colour and count colour changes
+    let tH = 0, tV = 0, nH = 0, nV = 0, secX = 0, secN = 0;
+    if (c1) {
+      out.topColor2 = c1.c;
+      const lab = new Map();
+      for (const p of clothPx) { const l = dist(p.c, c0.c) < dist(p.c, c1.c) ? 0 : 1; lab.set(p.y * W + p.x, l); if (l) { secX += Math.abs(p.x - cx); secN++; } }
+      for (const p of clothPx) {
+        const l = lab.get(p.y * W + p.x), r = lab.get(p.y * W + p.x + 2), d = lab.get((p.y + 2) * W + p.x);
+        if (r != null) { nH++; if (r !== l) tH++; } if (d != null) { nV++; if (d !== l) tV++; }
+      }
+      tH /= Math.max(1, nH); tV /= Math.max(1, nV);
+      const sf = secN / clothPx.length, ratio = tV / (tH + .001), central = secN && secX / secN < fw * .3;
+      // be conservative: straps, shadows and seat belts must not read as a pattern
+      const balanced = sf > .18 && sf < .62;
+      if (balanced && tV > .14 && ratio > 2.2) out.pattern = 'stripes';
+      else if (balanced && tH > .14 && ratio < .45) out.pattern = 'vstripes';
+      else if (balanced && tH > .12 && tV > .12 && ratio > .7 && ratio < 1.4) out.pattern = 'check';
+      else if (central && sf > .06 && sf < .3) out.pattern = 'graphic';
+      else if (sf > .08 && sf < .3 && tH > .06 && tV > .06) out.pattern = 'dots';
+      out.detail = { tH: +tH.toFixed(3), tV: +tV.toFixed(3), sf: +sf.toFixed(2), central };
+    }
+    // open jacket: the centre strip differs from both sides
+    const centre = median(clothPx.filter(p => Math.abs(p.x - cx) < fw * .15).map(p => p.c));
+    const left = median(clothPx.filter(p => p.x < cx - fw * .4).map(p => p.c)), right = median(clothPx.filter(p => p.x > cx + fw * .4).map(p => p.c));
+    const jacket = centre && left && right && dist(left, right) < 45 && dist(centre, left) > 65 && dist(centre, right) > 65;
+    // sleeves and neckline from skin in key regions
+    const sh = get(cx - fw * 1.0, cx - fw * .5, chinY, chinY + fh * .35).concat(get(cx + fw * .5, cx + fw * 1.0, chinY, chinY + fh * .35));
+    const up = get(cx - fw * 1.7, cx - fw * .82, chinY + fh * .2, chinY + fh * .85).concat(get(cx + fw * .82, cx + fw * 1.7, chinY + fh * .2, chinY + fh * .85));
+    const fore = get(cx - fw * 1.9, cx - fw * .82, chinY + fh * .95, chinY + fh * 1.8).concat(get(cx + fw * .82, cx + fw * 1.9, chinY + fh * .95, chinY + fh * 1.8));
+    const shS = frac(sh, skinish), upS = up.length > 12 ? frac(up, skinish) : null, foS = fore.length > 12 ? frac(fore, skinish) : null;
+    out.sleeves = shS != null && shS > .42 ? 'none' : upS != null && upS > .4 ? 'short' : foS != null && foS > .4 ? 'short' : (upS != null || foS != null) ? 'long' : 'short';
+    let depth = 0, wTop = 0, wBot = 0;
+    for (let y = Math.round(chinY + fh * .04); y < Math.min(H, chinY + fh * 1.2); y++) {
+      let run = 0; for (let x = Math.round(cx - fw * .5); x < cx + fw * .5; x++) if (mask[y * W + x] && skinish(at(x, y))) run++;
+      if (run < fw * .14) break;
+      if (!depth) wTop = run; wBot = run; depth++;
+    }
+    const d = depth / fh;
+    out.neck = d > .45 ? (wBot < wTop * .5 ? 'v' : 'scoop') : 'crew';
+    out.top = jacket ? 'jacket' : out.sleeves === 'none' ? 'tank' : out.sleeves === 'long' ? 'longsleeve' : 'tee';
+    if (jacket) { out.topColor = left; out.topColor2 = centre; out.sleeves = 'long'; out.neck = 'crew'; if (out.pattern !== 'solid' && out.pattern !== 'check') out.pattern = 'solid'; }
+    // bottoms, if the photo reaches below the waist
+    if (yMax > tBot + fh * .6) {
+      const low = get(cx - fw * 1.1, cx + fw * 1.1, tBot + fh * .1, yMax);
+      const lc = median(low.filter(p => !skinish(p.c)).map(p => p.c));
+      if (lc) { out.bottomColor = lc; out.bottom = frac(get(cx - fw * 1.1, cx + fw * 1.1, tBot + fh * 1.2, yMax), skinish) > .35 ? 'shorts' : 'pants'; }
+    }
+    out.detail = Object.assign(out.detail, { shS, upS, foS, neckDepth: +d.toFixed(2), jacket: !!jacket });
+    return out;
   }
   /* Small preview of the photo with the detected face outlined. */
   function preview(res, size = 120) {

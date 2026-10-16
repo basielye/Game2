@@ -203,3 +203,11 @@
 .pe-info span:first-child { margin-left: 0; }
 .photo-ed-card footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .photo-ed-card footer .ct-btn.ghost { color: var(--deep); background: #efe6cc; box-shadow: inset 0 0 0 1px #d8ccaa; }
+
+.pe-legend { display: flex; gap: 6px; align-items: center; font-size: 11.5px; font-weight: 800; color: #5a6a4a; margin-top: 6px; }
+.pe-legend span { width: 18px; height: 0; border-top: 2px dashed; display: inline-block; }
+.pe-legend span.w { border-color: #9a9a9a; } .pe-legend span.g { border-color: #3fae4a; margin-left: 8px; }
+.pe-outfit { background: #fff; border-radius: 12px; padding: 8px 10px; font-size: 12px; font-weight: 700; color: #4a5a40; display: flex; flex-direction: column; gap: 3px; line-height: 1.35; }
+.pe-outfit b { color: var(--deep); font-size: 13px; }
+.pe-outfit i { display: inline-block; width: 12px; height: 12px; border-radius: 4px; margin-right: 4px; vertical-align: -2px; border: 1px solid rgba(0, 0, 0, .2); }
+.photo-ed-card footer { flex-wrap: wrap; }

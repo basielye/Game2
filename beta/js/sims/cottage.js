@@ -673,9 +673,14 @@ const Cottage = (() => {
           <h4>Hairstyle</h4>${ch('hair', Simfolk.HAIR, ['Short', 'Pixie', 'Long', 'Bun', 'Curly', 'Ponytail', 'Buzz', 'Bald'])}
           <h4>Hair colour</h4>${sw('hairColor', Simfolk.HAIRC.includes(s.hairColor) ? Simfolk.HAIRC : Simfolk.HAIRC.concat(s.hairColor))}
           <h4>Facial hair</h4><div class="cas-chips">${[[null, 'None'], ['stubble', 'Stubble'], ['beard', 'Beard']].map(([v, n]) => `<button class="${(s.beard || null) === v ? 'on' : ''}" data-beard="${v || ''}">${n}</button>`).join('')}</div>
-          <h4>Outfit</h4>${ch('top', Simfolk.TOPS, ['T-shirt', 'Sweater', 'Dress', 'Overalls', 'Blazer', 'Apron'])}
+          <h4>Outfit</h4>${ch('top', Simfolk.TOPS, ['T-shirt', 'Tank top', 'Long sleeve', 'Sweater', 'Hoodie', 'Jacket', 'Blazer', 'Dress', 'Overalls', 'Apron'])}
+          <h4>Sleeves</h4><div class="cas-chips">${[['none', 'None'], ['short', 'Short'], ['long', 'Long']].map(([v, n]) => `<button class="${(s.sleeves || Simfolk.DEFAULT_SLEEVES[s.top]) === v ? 'on' : ''}" data-k="sleeves" data-v="${v}">${n}</button>`).join('')}</div>
+          <h4>Neckline</h4><div class="cas-chips">${[['crew', 'Crew'], ['scoop', 'Scoop'], ['v', 'V-neck']].map(([v, n]) => `<button class="${(s.neck || (s.top === 'tank' ? 'scoop' : 'crew')) === v ? 'on' : ''}" data-k="neck" data-v="${v}">${n}</button>`).join('')}</div>
+          <h4>Pattern</h4><div class="cas-chips">${[['solid', 'Plain'], ['stripes', 'Stripes'], ['vstripes', 'Pinstripe'], ['check', 'Check'], ['dots', 'Dots'], ['graphic', 'Print']].map(([v, n]) => `<button class="${(s.pattern || 'solid') === v ? 'on' : ''}" data-k="pattern" data-v="${v}">${n}</button>`).join('')}</div>
+          <h4>Second colour <small>(pattern, trim, jacket lining)</small></h4>${sw('topColor2', s.topColor2 && !Simfolk.CLOTH.includes(s.topColor2) ? Simfolk.CLOTH.concat(s.topColor2) : Simfolk.CLOTH)}
+          <h4>Bottoms</h4><div class="cas-chips">${[['pants', 'Trousers'], ['shorts', 'Shorts'], ['skirt', 'Skirt']].map(([v, n]) => `<button class="${(s.bottom || 'pants') === v ? 'on' : ''}" data-k="bottom" data-v="${v}">${n}</button>`).join('')}</div>
           <h4>Top colour</h4>${sw('topColor', Simfolk.CLOTH.includes(s.topColor) ? Simfolk.CLOTH : Simfolk.CLOTH.concat(s.topColor))}
-          <h4>Trousers & skirt colour</h4>${sw('bottomColor', Simfolk.CLOTH)}
+          <h4>Trousers & skirt colour</h4>${sw('bottomColor', Simfolk.CLOTH.includes(s.bottomColor) ? Simfolk.CLOTH : Simfolk.CLOTH.concat(s.bottomColor))}
           <h4>Traits <small>(pick 3)</small></h4><div class="cas-traits">${TRAITS.map(t => `<button class="${s.traits.includes(t.id) ? 'on' : ''}" data-trait="${t.id}" title="${t.desc}"><span>${t.icon}</span>${t.name}</button>`).join('')}</div>
           <h4>Aspiration</h4><div class="cas-asp">${ASPIRATIONS.map(a => `<button class="${s.aspiration === a.id ? 'on' : ''}" data-asp="${a.id}"><span>${a.icon}</span><b>${a.name}</b><small>${a.desc}</small></button>`).join('')}</div>
         </div>
@@ -683,7 +688,7 @@ const Cottage = (() => {
       <footer><button class="ct-btn ghost" id="casCancel">${host.dataset.first ? 'Use as is' : 'Cancel'}</button><button class="ct-btn" id="casDone">${host.dataset.first ? 'Move In' : 'Save household'}</button></footer></div>`;
     host.querySelectorAll('.cas-mem canvas').forEach((c, i) => portrait(c, casSims[i]));
     host.querySelectorAll('[data-mem]').forEach(b => b.onclick = () => { casIdx = +b.dataset.mem; dropPhoto(); renderCAS(); });
-    host.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { s[b.dataset.k] = b.dataset.v; Sfx.tap(); renderCAS(); });
+    host.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { s[b.dataset.k] = b.dataset.v; if (b.dataset.k === 'top') { s.sleeves = null; s.neck = null; } Sfx.tap(); renderCAS(); });
     host.querySelectorAll('[data-trait]').forEach(b => b.onclick = () => {
       const t = b.dataset.trait, i = s.traits.indexOf(t);
       if (i >= 0) s.traits.splice(i, 1); else { if (s.traits.length >= 3) s.traits.shift(); s.traits.push(t); }
@@ -724,17 +729,27 @@ const Cottage = (() => {
   function applyPhoto(s, r) {
     Object.assign(s, { skin: r.skin, hairColor: r.hairColor, hair: r.hair, beard: r.beard, age: r.age });
     if (r.topColor) s.topColor = r.topColor;
+    const o = r.outfit;
+    if (o) {
+      Object.assign(s, { top: o.top, sleeves: o.sleeves, neck: o.neck, pattern: o.pattern });
+      s.topColor2 = o.topColor2 || null;
+      if (o.bottomColor) { s.bottomColor = o.bottomColor; s.bottom = o.bottom; }
+    }
   }
   function dropPhoto() { if (casPhoto && casPhoto.url) URL.revokeObjectURL(casPhoto.url); casPhoto = null; }
+  const TOP_NAMES = { tee: 'T-shirt', tank: 'tank top', longsleeve: 'long-sleeve top', jacket: 'open jacket', sweater: 'sweater', hoodie: 'hoodie', blazer: 'blazer', dress: 'dress', overalls: 'overalls', apron: 'apron' };
+  const PAT_NAMES = { solid: 'plain', stripes: 'striped', vstripes: 'pinstriped', check: 'checked', dots: 'dotted', graphic: 'printed' };
   function openPhotoEditor(s) {
     const r0 = casPhoto; if (!r0) return;
-    let box = r0.debug.box.slice(), hair = r0.picked, pick = false, res = r0;
+    let box = r0.debug.box.slice(), hair = r0.picked, pick = false, res = r0, poly = r0.poly.map(p => p.slice()), accepted = !!r0.accepted;
+    const autoPoly = (r0.autoPoly || r0.poly).map(p => p.slice()), autoBox = (r0.autoBox || r0.debug.box).slice();
     const ed = document.createElement('div'); ed.className = 'photo-ed';
-    ed.innerHTML = `<div class="photo-ed-card"><h3>Match your photo</h3><p>Drag the circle onto the face and resize it. Tap <b>Pick hair colour</b>, then tap the hair, if the colour looks off. Your photo stays on this device and is not saved.</p>
-      <div class="photo-ed-body"><div class="photo-ed-pic"><canvas id="peCv"></canvas></div><div class="photo-ed-side"><canvas id="peSim" width="200" height="240"></canvas>
+    ed.innerHTML = `<div class="photo-ed-card"><h3>Tag the person</h3><p>We outlined the person we found with a <b>white dotted line</b>. Accept it, or drag the white dots to fit the body and clothes. The green circle marks the face. Your photo stays on this device and is not saved.</p>
+      <div class="photo-ed-body"><div class="photo-ed-pic"><canvas id="peCv"></canvas><div class="pe-legend"><span class="w"></span>Person <span class="g"></span>Face</div></div><div class="photo-ed-side"><canvas id="peSim" width="200" height="240"></canvas>
+      <div class="pe-outfit" id="peOutfit"></div>
       <label>Face size<input type="range" id="peSize" min="8" max="90" value="${Math.round(box[2] * 100)}"></label>
       <button class="ct-btn sm ghost" id="pePick">💧 Pick hair colour</button><div class="pe-info" id="peInfo"></div></div></div>
-      <footer><button class="ct-btn ghost" id="peReset">Reset</button><button class="ct-btn" id="peDone">Done</button></footer></div>`;
+      <footer><button class="ct-btn ghost" id="peReset">Reset outline</button><button class="ct-btn ghost" id="peAccept">✓ Accept outline</button><button class="ct-btn" id="peDone">Done</button></footer></div>`;
     $('#cas').appendChild(ed);
     const src = r0.debug.cv, cv = ed.querySelector('#peCv'), x = cv.getContext('2d');
     const maxW = Math.min(440, innerWidth - 60), maxH = Math.min(420, innerHeight * .45), sc = Math.min(maxW / src.width, maxH / src.height);
@@ -742,41 +757,68 @@ const Cottage = (() => {
     const simCv = ed.querySelector('#peSim'), sx = simCv.getContext('2d');
     const aspect = r0.debug.box[3] / r0.debug.box[2];
     function rerun() {
-      res = PhotoSim.analyze(r0.img, { crop: r0.crop, box, hair });
-      res.img = r0.img; res.url = r0.url; res.crop = r0.crop; res.picked = hair;
+      res = PhotoSim.analyze(r0.img, { crop: r0.crop, box, hair, poly });
+      Object.assign(res, { img: r0.img, url: r0.url, crop: r0.crop, picked: hair, autoPoly, autoBox, accepted });
       applyPhoto(s, res); draw();
     }
     function draw() {
       x.drawImage(src, 0, 0, cv.width, cv.height);
+      const P = poly.map(([a, b]) => [a * cv.width, b * cv.height]);
+      // dim everything outside the person tag
+      x.save(); x.fillStyle = 'rgba(0,0,0,.42)'; x.beginPath(); x.rect(0, 0, cv.width, cv.height); x.moveTo(...P[0]); P.slice(1).forEach(p => x.lineTo(...p)); x.closePath(); x.fill('evenodd'); x.restore();
+      x.save(); x.lineJoin = 'round';
+      x.strokeStyle = 'rgba(0,0,0,.55)'; x.lineWidth = 4; x.setLineDash([]); x.beginPath(); x.moveTo(...P[0]); P.slice(1).forEach(p => x.lineTo(...p)); x.closePath(); x.stroke();
+      x.strokeStyle = '#ffffff'; x.lineWidth = 2.2; x.setLineDash([5, 5]); x.stroke(); x.setLineDash([]);
+      if (!accepted) for (const [px, py] of P) { x.fillStyle = '#fff'; x.beginPath(); x.arc(px, py, 4.5, 0, 7); x.fill(); x.strokeStyle = 'rgba(0,0,0,.5)'; x.lineWidth = 1; x.stroke(); }
+      x.restore();
       const [bx, by, bw, bh] = box;
-      x.save(); x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(0, 0, cv.width, cv.height);
-      x.globalCompositeOperation = 'destination-out'; x.beginPath(); x.ellipse((bx + bw / 2) * cv.width, (by + bh / 2) * cv.height, bw / 2 * cv.width, bh / 2 * cv.height, 0, 0, 7); x.fill(); x.restore();
-      x.strokeStyle = '#7cff8c'; x.lineWidth = 2.5; x.setLineDash([6, 4]); x.beginPath(); x.ellipse((bx + bw / 2) * cv.width, (by + bh / 2) * cv.height, bw / 2 * cv.width, bh / 2 * cv.height, 0, 0, 7); x.stroke(); x.setLineDash([]);
+      x.strokeStyle = '#7cff8c'; x.lineWidth = 2; x.setLineDash([6, 4]); x.beginPath(); x.ellipse((bx + bw / 2) * cv.width, (by + bh / 2) * cv.height, bw / 2 * cv.width, bh / 2 * cv.height, 0, 0, 7); x.stroke(); x.setLineDash([]);
+      if (accepted) { x.fillStyle = 'rgba(31,58,36,.9)'; x.fillRect(8, 8, 104, 24); x.fillStyle = '#fff'; x.font = 'bold 12px Nunito, sans-serif'; x.fillText('✓ Outline accepted', 14, 24); }
       sx.clearRect(0, 0, 200, 240); const g2 = sx.createRadialGradient(100, 150, 10, 100, 130, 140); g2.addColorStop(0, '#fff8e6'); g2.addColorStop(1, '#e6dcc0'); sx.fillStyle = g2; sx.fillRect(0, 0, 200, 240);
       Simfolk.drawSim(sx, s, 100, 228, 2.6, performance.now() / 1000, { anim: 'stand', front: true, mood: 80 });
+      const o = res.outfit;
+      ed.querySelector('#peOutfit').innerHTML = o ? `<b>Clothes we found</b><span><i style="background:${s.topColor}"></i>${o.topColor2 && (o.pattern !== 'solid' || o.top === 'jacket') ? `<i style="background:${o.topColor2}"></i>` : ''}${PAT_NAMES[o.pattern]} ${TOP_NAMES[o.top]}</span><span>${o.sleeves === 'none' ? 'sleeveless' : o.sleeves + ' sleeves'} · ${o.neck === 'v' ? 'V-neck' : o.neck + ' neck'}</span>${o.bottomColor ? `<span><i style="background:${o.bottomColor}"></i>${o.bottom}</span>` : ''}` : '<b>No clothes found</b><span>Try enlarging the outline.</span>';
       ed.querySelector('#peInfo').innerHTML = `<span style="background:${s.skin}"></span>Skin <span style="background:${s.hairColor}"></span>Hair: ${s.hair}${s.beard ? ' · ' + s.beard : ''}${s.age === 'elder' ? ' · elder' : ''}`;
-      ed.querySelector('#pePick').classList.toggle('on', pick); cv.style.cursor = pick ? 'crosshair' : 'move';
+      ed.querySelector('#pePick').classList.toggle('on', pick); ed.querySelector('#peAccept').classList.toggle('on', accepted);
+      ed.querySelector('#peAccept').innerHTML = accepted ? '✎ Adjust outline' : '✓ Accept outline';
     }
     let drag = null;
     const pos = e => { const b = cv.getBoundingClientRect(); return [(e.clientX - b.left) / b.width, (e.clientY - b.top) / b.height]; };
+    const inEll = (px, py) => { const [bx, by, bw, bh] = box; return ((px - bx - bw / 2) / (bw / 2)) ** 2 + ((py - by - bh / 2) / (bh / 2)) ** 2 <= 1; };
     cv.onpointerdown = e => {
       const [px, py] = pos(e);
       if (pick) { hair = PhotoSim.pixel(r0, px, py); pick = false; Sfx.tap(); rerun(); return; }
-      drag = { px, py, b: box.slice() }; cv.setPointerCapture(e.pointerId);
+      cv.setPointerCapture(e.pointerId);
+      if (!accepted) {
+        let bi = -1, bd = 1e9;
+        poly.forEach(([a, b], i) => { const d = Math.hypot((a - px) * cv.width, (b - py) * cv.height); if (d < bd) { bd = d; bi = i; } });
+        if (bd < 16) { drag = { kind: 'pt', i: bi }; return; }
+      }
+      if (inEll(px, py)) { drag = { kind: 'face', px, py, b: box.slice() }; return; }
+      if (!accepted) drag = { kind: 'all', px, py, p: poly.map(p => p.slice()) };
     };
-    cv.onpointermove = e => { if (!drag) return; const [px, py] = pos(e); box[0] = U.clamp(drag.b[0] + px - drag.px, -box[2] / 2, 1 - box[2] / 2); box[1] = U.clamp(drag.b[1] + py - drag.py, -box[3] / 2, 1 - box[3] / 2); draw(); };
+    cv.onpointermove = e => {
+      const [px, py] = pos(e);
+      cv.style.cursor = pick ? 'crosshair' : drag ? 'grabbing' : 'grab';
+      if (!drag) return;
+      if (drag.kind === 'pt') poly[drag.i] = [U.clamp(px, 0, 1), U.clamp(py, 0, 1)];
+      else if (drag.kind === 'all') poly = drag.p.map(([a, b]) => [U.clamp(a + px - drag.px, 0, 1), U.clamp(b + py - drag.py, 0, 1)]);
+      else { box[0] = U.clamp(drag.b[0] + px - drag.px, -box[2] / 2, 1 - box[2] / 2); box[1] = U.clamp(drag.b[1] + py - drag.py, -box[3] / 2, 1 - box[3] / 2); }
+      draw();
+    };
     cv.onpointerup = () => { if (drag) { drag = null; rerun(); } };
-    ed.querySelector('#peSize').oninput = e => { const cxm = box[0] + box[2] / 2, cym = box[1] + box[3] / 2, w = e.target.value / 100, h = w * aspect * cv.width / cv.height * (cv.height / cv.width); box = [cxm - w / 2, cym - h / 2, w, h]; draw(); };
+    ed.querySelector('#peSize').oninput = e => { const cxm = box[0] + box[2] / 2, cym = box[1] + box[3] / 2, w = e.target.value / 100, h = w * aspect; box = [cxm - w / 2, cym - h / 2, w, h]; draw(); };
     ed.querySelector('#peSize').onchange = rerun;
     ed.querySelector('#pePick').onclick = () => { pick = !pick; draw(); };
-    ed.querySelector('#peReset').onclick = () => { box = r0.debug.box.slice(); hair = null; rerun(); };
-    ed.querySelector('#peDone').onclick = () => { res.debug.box = box.slice(); casPhoto = Object.assign(res, { img: r0.img, url: r0.url }); ed.remove(); Sfx.sparkle(); renderCAS(); };
+    ed.querySelector('#peAccept').onclick = () => { accepted = !accepted; Sfx.tap(); if (accepted) Sfx.sparkle(); res.accepted = accepted; draw(); };
+    ed.querySelector('#peReset').onclick = () => { box = autoBox.slice(); poly = autoPoly.map(p => p.slice()); hair = null; accepted = false; rerun(); };
+    ed.querySelector('#peDone').onclick = () => { res.debug.box = box.slice(); res.poly = poly.map(p => p.slice()); casPhoto = Object.assign(res, { img: r0.img, url: r0.url, autoPoly, autoBox, accepted: true }); ed.remove(); Sfx.sparkle(); renderCAS(); };
     draw();
   }
   function closeCAS(apply) {
     if (apply) {
       const old = g.sims;
-      g.sims = casSims.map(n => { const o = old.find(x => x.id === n.id); return o ? Object.assign(o, { name: n.name, age: n.age, body: n.body, skin: n.skin, hair: n.hair, beard: n.beard || null, hairColor: n.hairColor, top: n.top, topColor: n.topColor, bottomColor: n.bottomColor, traits: n.traits, aspiration: n.aspiration }) : n; });
+      g.sims = casSims.map(n => { const o = old.find(x => x.id === n.id); return o ? Object.assign(o, { sleeves: n.sleeves || null, neck: n.neck || null, pattern: n.pattern || 'solid', topColor2: n.topColor2 || null, bottom: n.bottom || 'pants', name: n.name, age: n.age, body: n.body, skin: n.skin, hair: n.hair, beard: n.beard || null, hairColor: n.hairColor, top: n.top, topColor: n.topColor, bottomColor: n.bottomColor, traits: n.traits, aspiration: n.aspiration }) : n; });
       if (!g.sims.find(s => s.id === g.sel)) g.sel = g.sims[0].id;
       g.reserved = {}; g.sims.forEach(s => { if (!old.includes(s)) { s.x = 7.5; s.y = 11.5; } });
       save();

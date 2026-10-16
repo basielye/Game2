@@ -78,7 +78,9 @@ const Simfolk = (() => {
   const SKIN = ['#f6d7c3', '#eebf9f', '#d9a37c', '#b57b52', '#8a5636', '#5e3a24'];
   const HAIR = ['short', 'pixie', 'long', 'bun', 'curly', 'ponytail', 'buzz', 'bald'];
   const HAIRC = ['#2b1d14', '#5a3a22', '#8a5a2a', '#c98f4a', '#e8c46a', '#b04a2a', '#8a8a8a', '#e6e2da', '#3f6a8a', '#c96a9a'];
-  const TOPS = ['tee', 'sweater', 'dress', 'overalls', 'blazer', 'apron'];
+  const TOPS = ['tee', 'tank', 'longsleeve', 'sweater', 'hoodie', 'jacket', 'blazer', 'dress', 'overalls', 'apron'];
+  const DEFAULT_SLEEVES = { tee: 'short', tank: 'none', longsleeve: 'long', sweater: 'long', hoodie: 'long', jacket: 'long', blazer: 'long', dress: 'short', overalls: 'short', apron: 'short' };
+  const PATTERNS = ['solid', 'stripes', 'vstripes', 'check', 'dots', 'graphic'];
   const CLOTH = ['#3f6a4a', '#8a3a4a', '#2e3a52', '#d9a85a', '#efe6d4', '#c9909a', '#5a8ab0', '#2e2e30', '#b8622e', '#7a5a9a', '#9ab06a', '#f2c230'];
   const BODIES = ['slim', 'average', 'broad'];
   const AGES = ['young', 'adult', 'elder'];
@@ -133,35 +135,67 @@ const Simfolk = (() => {
     ctx.translate(0, bob + drop);
     const pants = s.top === 'overalls' ? s.bottomColor : s.bottomColor, skin = s.skin;
     const rr = (x, y, w, h, r, c) => { ctx.fillStyle = c; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); ctx.fill(); };
-    // legs
-    const legLen = sit ? 19 : kneel ? 14 : 26;
+    // legs: trousers, shorts or skirt
+    const legLen = sit ? 19 : kneel ? 14 : 26, bottom = s.top === 'dress' ? 'dress' : (s.bottom || 'pants');
     for (const side of [-1, 1]) {
       const lift = walking ? Math.max(0, Math.sin(ph + (side > 0 ? Math.PI : 0))) * 4 : 0;
       const lx = side * 4.5 - 3.5, top = -26 + (sit ? 7 : kneel ? 12 : 0) - drop;
-      if (s.top === 'dress') rr(lx + 1, top + 10, 5, legLen - 10 - lift, 2, skin); else rr(lx, top, 7, legLen - lift, 3, pants);
-      ctx.fillStyle = '#2a2420'; ctx.beginPath(); ctx.ellipse(lx + 3.5 + side * .8, top + legLen - lift, 4.5, 2.6, 0, 0, 7); ctx.fill();
-      if (sit) { ctx.fillStyle = s.top === 'dress' ? s.topColor : pants; ctx.beginPath(); ctx.ellipse(lx + 3.5, top + 1, 4.6, 4, 0, 0, 7); ctx.fill(); }
+      if (bottom === 'dress' || bottom === 'skirt') rr(lx + 1, top + 8, 5, legLen - 8 - lift, 2, skin);
+      else if (bottom === 'shorts') { rr(lx + 1, top + 10, 5, legLen - 10 - lift, 2, skin); rr(lx, top, 7, Math.min(12, legLen - lift), 3, pants); }
+      else { rr(lx, top, 7, legLen - lift, 3, pants); if (s.pattern === 'denim' || s.bottomStyle === 'jeans') { ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(lx + 1, top + 3, 1, legLen - lift - 6); } }
+      ctx.fillStyle = s.shoes || '#2a2420'; ctx.beginPath(); ctx.ellipse(lx + 3.5 + side * .8, top + legLen - lift, 4.5, 2.6, 0, 0, 7); ctx.fill();
+      if (sit) { ctx.fillStyle = bottom === 'dress' ? s.topColor : bottom === 'skirt' ? pants : pants; ctx.beginPath(); ctx.ellipse(lx + 3.5, top + 1, 4.6, 4, 0, 0, 7); ctx.fill(); }
     }
+    if (bottom === 'skirt' && !sit) { ctx.fillStyle = pants; ctx.beginPath(); ctx.moveTo(-bw + 1, -27 - drop); ctx.lineTo(bw - 1, -27 - drop); ctx.lineTo(bw + 4, -12 - drop); ctx.lineTo(-bw - 4, -12 - drop); ctx.closePath(); ctx.fill(); }
     ctx.translate(0, -drop);
     // torso
-    const ty = -51 + hunch, th = 27;
-    ctx.fillStyle = anim === 'shower' ? '#f4f4f2' : s.topColor;
-    ctx.beginPath(); ctx.moveTo(-bw, ty + 4); ctx.quadraticCurveTo(-bw, ty, -bw + 4, ty); ctx.lineTo(bw - 4, ty); ctx.quadraticCurveTo(bw, ty, bw, ty + 4);
-    if (s.top === 'dress' && anim !== 'shower') { ctx.lineTo(bw + 5, ty + th + 9); ctx.lineTo(-bw - 5, ty + th + 9); } else { ctx.lineTo(bw, ty + th); ctx.lineTo(-bw, ty + th); }
-    ctx.closePath(); ctx.fill();
-    if (anim !== 'shower') {
+    const ty = -51 + hunch, th = 27, shower = anim === 'shower';
+    const sleeves = shower ? 'none' : (s.sleeves || DEFAULT_SLEEVES[s.top] || 'short');
+    const neck = s.neck || (s.top === 'tank' ? 'scoop' : 'crew'), c2 = s.topColor2 || U.shade(s.topColor, .35);
+    const torsoPath = () => {
+      ctx.beginPath(); ctx.moveTo(-bw, ty + 4); ctx.quadraticCurveTo(-bw, ty, -bw + 4, ty); ctx.lineTo(bw - 4, ty); ctx.quadraticCurveTo(bw, ty, bw, ty + 4);
+      if (s.top === 'dress' && !shower) { ctx.lineTo(bw + 5, ty + th + 9); ctx.lineTo(-bw - 5, ty + th + 9); } else { ctx.lineTo(bw, ty + th); ctx.lineTo(-bw, ty + th); }
+      ctx.closePath();
+    };
+    ctx.fillStyle = shower ? '#f4f4f2' : s.topColor; torsoPath(); ctx.fill();
+    if (!shower) {
+      ctx.save(); torsoPath(); ctx.clip();
+      const pat = s.pattern || 'solid', bot = ty + th + (s.top === 'dress' ? 9 : 0);
+      if (pat === 'stripes') { ctx.fillStyle = c2; for (let y = ty + 3; y < bot; y += 5) ctx.fillRect(-bw - 6, y, bw * 2 + 12, 2.2); }
+      else if (pat === 'vstripes') { ctx.fillStyle = c2; for (let x = -bw - 2; x < bw + 6; x += 4.5) ctx.fillRect(x, ty, 1.8, bot - ty); }
+      else if (pat === 'check') { ctx.globalAlpha = .45; ctx.fillStyle = c2; for (let y = ty + 1; y < bot; y += 6) ctx.fillRect(-bw - 6, y, bw * 2 + 12, 3); for (let x = -bw; x < bw + 6; x += 6) ctx.fillRect(x, ty, 3, bot - ty); ctx.globalAlpha = .9; ctx.fillStyle = U.shade(c2, -.2); for (let y = ty + 1; y < bot; y += 6) for (let x = -bw; x < bw + 6; x += 6) ctx.fillRect(x, y, 3, 3); ctx.globalAlpha = 1; }
+      else if (pat === 'dots') { ctx.fillStyle = c2; for (let y = ty + 4, r = 0; y < bot; y += 5, r++) for (let x = -bw + (r % 2) * 2.5; x < bw + 3; x += 5) { ctx.beginPath(); ctx.arc(x, y, 1.1, 0, 7); ctx.fill(); } }
+      else if (pat === 'graphic') {
+        ctx.fillStyle = c2; ctx.beginPath(); ctx.ellipse(0, ty + 13, bw * .55, 6.5, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = s.topColor; ctx.beginPath(); ctx.moveTo(0, ty + 8); ctx.quadraticCurveTo(4.5, ty + 12, 0, ty + 18); ctx.quadraticCurveTo(-4.5, ty + 12, 0, ty + 8); ctx.fill();
+        ctx.strokeStyle = c2; ctx.lineWidth = .8; ctx.beginPath(); ctx.moveTo(0, ty + 9); ctx.lineTo(0, ty + 17.5); ctx.stroke();
+      }
+      ctx.restore();
       if (s.top === 'overalls') { rr(-bw + 2, ty + 9, bw * 2 - 4, th - 8, 2, s.bottomColor); ctx.fillStyle = s.bottomColor; ctx.fillRect(-bw + 2, ty, 3, 10); ctx.fillRect(bw - 5, ty, 3, 10); }
-      if (s.top === 'sweater') { ctx.fillStyle = 'rgba(0,0,0,.15)'; ctx.fillRect(-bw, ty + th - 3, bw * 2, 3); for (let i = -bw + 3; i < bw; i += 4) ctx.fillRect(i, ty + 6, 1, th - 10); }
-      if (s.top === 'blazer') { ctx.fillStyle = '#f4f1ea'; ctx.beginPath(); ctx.moveTo(-3, ty); ctx.lineTo(0, ty + 12); ctx.lineTo(3, ty); ctx.fill(); ctx.fillStyle = U.shade(s.topColor, -.25); ctx.fillRect(-.5, ty + 12, 1, th - 12); }
+      if (s.top === 'sweater') { ctx.fillStyle = 'rgba(0,0,0,.15)'; ctx.fillRect(-bw, ty + th - 3, bw * 2, 3); if ((s.pattern || 'solid') === 'solid') for (let i = -bw + 3; i < bw; i += 4) ctx.fillRect(i, ty + 6, 1, th - 10); }
+      if (s.top === 'blazer' || s.top === 'jacket') {
+        const inner = s.top === 'jacket' ? c2 : '#f4f1ea';
+        ctx.fillStyle = inner; ctx.beginPath(); ctx.moveTo(-3.5, ty); ctx.lineTo(3.5, ty); ctx.lineTo(2.5, ty + th); ctx.lineTo(-2.5, ty + th); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = U.shade(s.topColor, -.22); ctx.beginPath(); ctx.moveTo(-3.5, ty); ctx.lineTo(-6, ty + 10); ctx.lineTo(-2.5, ty + 13); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(3.5, ty); ctx.lineTo(6, ty + 10); ctx.lineTo(2.5, ty + 13); ctx.closePath(); ctx.fill();
+        if (s.top === 'jacket') { ctx.fillStyle = '#d8d0c0'; for (const y of [ty + 15, ty + 21]) { ctx.beginPath(); ctx.arc(-4, y, .9, 0, 7); ctx.fill(); } }
+      }
       if (s.top === 'apron') rr(-bw + 3, ty + 6, bw * 2 - 6, th + 3, 3, '#f4f1ea');
-      if (s.top === 'tee') { ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.beginPath(); ctx.arc(0, ty, 4, 0, Math.PI); ctx.fill(); }
+      if (s.top === 'hoodie') { ctx.fillStyle = U.shade(s.topColor, -.15); ctx.beginPath(); ctx.ellipse(0, ty + 1, bw - 2, 4, 0, 0, Math.PI); ctx.fill(); rr(-bw + 4, ty + 15, bw * 2 - 8, 8, 3, U.shade(s.topColor, -.1)); ctx.strokeStyle = '#f4f1ea'; ctx.lineWidth = .8; ctx.beginPath(); ctx.moveTo(-2, ty + 2); ctx.lineTo(-2.5, ty + 9); ctx.moveTo(2, ty + 2); ctx.lineTo(2.5, ty + 9); ctx.stroke(); }
+      // neckline & bare shoulders
+      ctx.fillStyle = skin;
+      if (sleeves === 'none') { for (const sx of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sx * bw, ty + 6); ctx.lineTo(sx * bw, ty); ctx.lineTo(sx * (bw - 4.2), ty); ctx.quadraticCurveTo(sx * (bw - 3), ty + 4, sx * bw, ty + 7); ctx.closePath(); ctx.fill(); } }
+      if (neck === 'scoop') { ctx.beginPath(); ctx.moveTo(-5, ty - .5); ctx.quadraticCurveTo(0, ty + 9, 5, ty - .5); ctx.closePath(); ctx.fill(); }
+      else if (neck === 'v') { ctx.beginPath(); ctx.moveTo(-4, ty - .5); ctx.lineTo(0, ty + 8); ctx.lineTo(4, ty - .5); ctx.closePath(); ctx.fill(); }
+      else if (!['blazer', 'jacket', 'hoodie'].includes(s.top)) { ctx.beginPath(); ctx.arc(0, ty - .3, 3.6, 0, Math.PI); ctx.fill(); ctx.strokeStyle = U.shade(s.topColor, -.2); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, ty - .3, 3.8, .1, Math.PI - .1); ctx.stroke(); }
       ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(-bw + 1, ty + 2, 3, th - 4);
     } else { ctx.fillStyle = 'rgba(160,200,230,.5)'; for (let i = 0; i < 9; i++) ctx.fillRect(-14 + ((i * 7 + Math.floor(t * 20)) % 28), -90 + ((i * 13 + t * 120) % 70), 1, 6); }
-    // arms
+    // arms with sleeves
+    const sleeveCol = s.pattern === 'stripes' || s.pattern === 'check' ? s.topColor : s.topColor;
     const arm = (side, ang, len = 22, hold) => {
       ctx.save(); ctx.translate(side * (bw - 1), ty + 3); ctx.rotate(ang);
-      rr(-2.6, 0, 5.2, len, 2.6, anim === 'shower' ? skin : (s.top === 'tee' || s.top === 'dress' ? skin : s.topColor));
-      if (s.top === 'tee' || s.top === 'dress') rr(-2.8, 0, 5.6, 7, 2.6, anim === 'shower' ? skin : s.topColor);
+      rr(-2.6, 0, 5.2, len, 2.6, sleeves === 'long' ? sleeveCol : skin);
+      if (sleeves === 'short') { rr(-2.9, -1, 5.8, 8.5, 2.6, sleeveCol); if (s.pattern === 'stripes') { ctx.fillStyle = c2; ctx.fillRect(-2.9, 2, 5.8, 1.6); ctx.fillRect(-2.9, 6, 5.8, 1.4); } }
+      if (sleeves === 'long') { if (s.pattern === 'stripes') { ctx.fillStyle = c2; for (let y = 2; y < len - 2; y += 5) ctx.fillRect(-2.6, y, 5.2, 1.8); } ctx.fillStyle = U.shade(sleeveCol, -.15); ctx.fillRect(-2.6, len - 3.5, 5.2, 1.5); }
       ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(0, len, 2.9, 0, 7); ctx.fill();
       if (hold) hold(len);
       ctx.restore();
@@ -273,5 +307,5 @@ const Simfolk = (() => {
     ctx.restore();
   }
 
-  return { NEEDS, SKILLS, TRAITS, TRAIT_BY, ASPIRATIONS, CAREERS, PROMO_SKILL, MOODLETS, SOCIAL, SKIN, HAIR, HAIRC, TOPS, CLOTH, BODIES, AGES, level, nextAt, create, trait, mult, likes, mood, moodLabel, moodColor, addMoodlet, drawSim, plumbob, bubble };
+  return { NEEDS, SKILLS, TRAITS, TRAIT_BY, ASPIRATIONS, CAREERS, PROMO_SKILL, MOODLETS, SOCIAL, SKIN, HAIR, HAIRC, TOPS, PATTERNS, DEFAULT_SLEEVES, CLOTH, BODIES, AGES, level, nextAt, create, trait, mult, likes, mood, moodLabel, moodColor, addMoodlet, drawSim, plumbob, bubble };
 })();
