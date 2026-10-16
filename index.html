@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#05010f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Neon Surge">
+<meta name="description" content="Neon Surge: an endless roguelite arcade shooter for your phone.">
+<title>Neon Surge</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+  <div id="vignette"></div>
+
+  <!-- ===== HUD ===== -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="hud-left">
+        <div id="hpRow" class="hp-row"></div>
+        <div class="wave-label">WAVE <span id="hudWave">1</span></div>
+      </div>
+      <div class="hud-center">
+        <div id="hudScore" class="score">0</div>
+        <div id="hudMult" class="mult">x1.0</div>
+      </div>
+      <div class="hud-right">
+        <button id="pauseBtn" class="icon-btn" aria-label="Pause">❚❚</button>
+        <div class="crystal-count"><i class="gem"></i><span id="hudCrystals">0</span></div>
+      </div>
+    </div>
+    <div id="bossBar" class="boss-bar hidden">
+      <div class="boss-name" id="bossName">BOSS</div>
+      <div class="bar"><div id="bossFill"></div></div>
+    </div>
+    <div id="combo" class="combo hidden">
+      <div class="combo-num" id="comboNum">0</div>
+      <div class="combo-lbl">COMBO</div>
+      <div class="combo-timer"><div id="comboFill"></div></div>
+    </div>
+    <button id="odBtn" class="od-btn" aria-label="Surge">
+      <svg viewBox="0 0 100 100"><circle class="od-track" cx="50" cy="50" r="44"/><circle id="odRing" class="od-ring" cx="50" cy="50" r="44"/></svg>
+      <span class="od-label">SURGE</span>
+    </button>
+  </div>
+
+  <div id="banner" class="banner"><div class="b-main"></div><div class="b-sub"></div></div>
+  <div id="tutorial" class="tutorial hidden">
+    <div class="tut-hand">☝</div>
+    <div>DRAG ANYWHERE TO FLY</div>
+    <small>You fire automatically · Skim bullets to <b>GRAZE</b> &amp; charge <b>SURGE</b></small>
+  </div>
+
+  <!-- ===== TITLE ===== -->
+  <div id="title" class="screen">
+    <div class="title-top">
+      <div class="pilot">
+        <div class="pilot-lvl">LV <span id="tLevel">1</span></div>
+        <div class="pilot-info">
+          <div class="pilot-rank" id="tRank">CADET</div>
+          <div class="xpbar"><div id="tXp"></div></div>
+        </div>
+      </div>
+      <div class="crystal-count big"><i class="gem"></i><span id="tCrystals">0</span></div>
+    </div>
+    <div class="logo">
+      <div class="l1">NEON</div>
+      <div class="l2">SURGE</div>
+      <div class="tagline">ENDLESS · ROGUELITE · ARCADE</div>
+    </div>
+    <div class="best-row">
+      <div><small>BEST SCORE</small><b id="tBest">0</b></div>
+      <div><small>BEST WAVE</small><b id="tBestWave">0</b></div>
+    </div>
+    <button id="playBtn" class="btn primary big">▶ PLAY</button>
+    <div class="menu-row">
+      <button id="hangarBtn" class="btn">HANGAR<span class="dot hidden" id="hangarDot"></span></button>
+      <button id="missionsBtn" class="btn">MISSIONS<span class="dot hidden" id="missionDot"></span></button>
+    </div>
+    <div class="settings-row">
+      <button class="toggle" data-set="sound">SFX</button>
+      <button class="toggle" data-set="music">MUSIC</button>
+      <button class="toggle" data-set="haptics">VIBRATE</button>
+    </div>
+  </div>
+
+  <!-- ===== HANGAR ===== -->
+  <div id="hangar" class="screen panel hidden">
+    <div class="panel-head">
+      <button class="icon-btn back" data-back>‹</button>
+      <h2>HANGAR</h2>
+      <div class="crystal-count"><i class="gem"></i><span class="cc">0</span></div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="ships">SHIPS</button>
+      <button class="tab" data-tab="upgrades">UPGRADES</button>
+    </div>
+    <div id="hangarList" class="list"></div>
+  </div>
+
+  <!-- ===== MISSIONS ===== -->
+  <div id="missions" class="screen panel hidden">
+    <div class="panel-head">
+      <button class="icon-btn back" data-back>‹</button>
+      <h2>MISSIONS</h2>
+      <div class="crystal-count"><i class="gem"></i><span class="cc">0</span></div>
+    </div>
+    <div class="list">
+      <div class="section-title">DAILY <span id="dailyReset"></span></div>
+      <div id="dailyList"></div>
+      <div class="section-title">ACHIEVEMENTS <span id="achCount"></span></div>
+      <div id="achList"></div>
+    </div>
+  </div>
+
+  <!-- ===== UPGRADE PICK ===== -->
+  <div id="upgrade" class="screen overlay hidden">
+    <div class="up-head">
+      <div class="up-title" id="upTitle">WAVE CLEARED</div>
+      <div class="up-sub" id="upSub">Choose a mod</div>
+    </div>
+    <div id="cards" class="cards"></div>
+    <button id="rerollBtn" class="btn small">↻ REROLL <span id="rerollN">0</span></button>
+    <div id="modList" class="mod-list"></div>
+  </div>
+
+  <!-- ===== PAUSE ===== -->
+  <div id="pause" class="screen overlay hidden">
+    <h2 class="glow-title">PAUSED</h2>
+    <div id="pauseMods" class="mod-list"></div>
+    <button id="resumeBtn" class="btn primary big">▶ RESUME</button>
+    <div class="settings-row">
+      <button class="toggle" data-set="sound">SFX</button>
+      <button class="toggle" data-set="music">MUSIC</button>
+      <button class="toggle" data-set="haptics">VIBRATE</button>
+    </div>
+    <button id="quitBtn" class="btn danger">ABANDON RUN</button>
+  </div>
+
+  <!-- ===== GAME OVER ===== -->
+  <div id="over" class="screen overlay hidden">
+    <div class="over-title">SIGNAL LOST</div>
+    <div id="newBest" class="new-best hidden">★ NEW BEST ★</div>
+    <div class="over-score" id="oScore">0</div>
+    <div class="stats" id="oStats"></div>
+    <div class="rewards" id="oRewards"></div>
+    <button id="retryBtn" class="btn primary big">↻ PLAY AGAIN</button>
+    <div class="menu-row">
+      <button id="homeBtn" class="btn">MENU</button>
+      <button id="overHangarBtn" class="btn">HANGAR</button>
+    </div>
+  </div>
+
+  <div id="toasts"></div>
+  <div id="rotate" class="rotate-hint">Rotate your phone to portrait ↻</div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>
