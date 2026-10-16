@@ -159,9 +159,12 @@ export class Renderer {
     }
 
     this.drawKeeper(s.keeper.x, s.keeper.y, s.time);
-    s.villagers.forEach((v) => this.drawVillager(v, s.time));
+    // Walkers sit under the fog; anyone poofed into the air or onto a roof is drawn above it.
+    const above = (v: VillagerSprite) => v.mood === 'panic' || v.mood === 'roof';
+    s.villagers.forEach((v) => !above(v) && this.drawVillager(v, s.time));
 
     this.drawFog(s, ease);
+    s.villagers.forEach((v) => above(v) && this.drawVillager(v, s.time));
     if (s.preview) this.drawPreview(level, s.preview, s.time);
 
     for (const e of s.effects) this.drawEffect(e);

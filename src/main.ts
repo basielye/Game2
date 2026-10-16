@@ -389,6 +389,7 @@ function skip() {
   const last = result.frames.length - 1;
   for (let k = play.fired + 1; k <= last; k++) fireEvents(result.frames[k], true);
   play = { ...play, idx: last, t: 1, fired: last };
+  effects = [];
   showResult();
 }
 
@@ -411,7 +412,7 @@ function showResult() {
   el.result.innerHTML = `
     <h2>${title}</h2>
     <div class="stars">${starsHtml}</div>
-    <p>${line}${!won ? '<br>Your lanterns are still where you left them.' : ''}</p>
+    <p>${line}${!won && placements.length ? '<br>Your lanterns are still where you left them.' : ''}</p>
     <div class="row">
       <button id="r-retry">↺ Retry</button>
       ${won && hasNext ? '<button id="r-next" class="primary">Next night →</button>' : ''}
@@ -676,7 +677,8 @@ function firstUnfinished(): number {
   return k < 0 ? 0 : k;
 }
 
-const start = firstUnfinished();
+const nightParam = Number(new URLSearchParams(location.search).get('night'));
+const start = nightParam >= 1 && nightParam <= LEVELS.length ? nightParam - 1 : firstUnfinished();
 loadLevel(LEVELS[start], { kind: 'story', index: start });
 syncButtons();
 requestAnimationFrame(frame);
