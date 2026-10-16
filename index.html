@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#16182a" />
+    <title>Lanternfall</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2316182a'/%3E%3Crect x='10' y='8' width='12' height='17' rx='3' fill='%233b2c20'/%3E%3Crect x='12.5' y='11' width='7' height='11' rx='2' fill='%23ffd27a'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <button id="btn-menu" class="icon-btn" aria-label="Menu">☰</button>
+        <div class="title">
+          <span id="night-label">Night 1</span>
+          <strong id="level-name">Lanternfall</strong>
+        </div>
+        <button id="btn-sound" class="icon-btn" aria-label="Toggle sound">🔊</button>
+      </header>
+
+      <div class="layout">
+        <section class="stage">
+          <div id="rule-card" class="rule-card">
+            <span class="rule-icon" id="rule-icon">🐌</span>
+            <div><b id="rule-name">Creeper</b> <span id="rule-text"></span></div>
+          </div>
+          <div id="board-wrap">
+            <canvas id="board"></canvas>
+            <div id="toast" class="toast" hidden></div>
+            <div id="result" class="result" hidden></div>
+          </div>
+        </section>
+
+        <aside class="controls">
+          <div class="goal" id="goal"></div>
+          <div class="oil">
+            <div class="oil-label"><span>Oil</span><span id="oil-num">0 / 0</span></div>
+            <div class="oil-bar" id="oil-bar"></div>
+            <div class="oil-legend"><span class="sw walk"></span>walking <span class="sw lamp"></span>lanterns</div>
+          </div>
+          <div id="palette" class="palette"></div>
+          <div class="actions">
+            <button id="btn-undo">↶ Undo</button>
+            <button id="btn-clear">Clear</button>
+            <button id="btn-play" class="primary">▶ Play</button>
+            <button id="btn-skip" hidden>⏭ Skip</button>
+            <button id="btn-retry" hidden>↺ Retry</button>
+          </div>
+          <p class="tips" id="tips">Tap a tile to place a lantern. Tap it again to remove.</p>
+        </aside>
+      </div>
+
+      <div id="menu" class="overlay" hidden>
+        <div class="menu-card">
+          <h1>Lanternfall</h1>
+          <p class="sub">Keep the village lit until everyone's home.</p>
+          <div id="level-grid" class="level-grid"></div>
+          <div class="menu-row" id="menu-modes"></div>
+          <label class="check"><input type="checkbox" id="opt-patterns" /> Stronger fog patterns (colourblind help)</label>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

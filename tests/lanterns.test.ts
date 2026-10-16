@@ -111,3 +111,15 @@ describe('keeper and oil', () => {
     expect(r.won).toBe(false);
   });
 });
+
+describe('keeper route order', () => {
+  it('walks the shortest order regardless of tap order', async () => {
+    const { bestOrder } = await import('../src/sim');
+    const level = makeLevel(['K......'], { oil: 99 });
+    const tapped = { placements: [{ x: 6, y: 0, type: 'basic' as const }, { x: 2, y: 0, type: 'basic' as const }] };
+    expect(planCost(level, tapped).walkOil).toBe(10);
+    const ordered = bestOrder(level, tapped);
+    expect(ordered.placements.map((p) => p.x)).toEqual([2, 6]);
+    expect(planCost(level, ordered).walkOil).toBe(6);
+  });
+});

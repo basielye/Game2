@@ -6,3 +6,4 @@ export * from './lanterns';
 export * from './plan';
 export * from './fog';
 export * from './sim';
+export * from './solver';
