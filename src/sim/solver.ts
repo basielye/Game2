@@ -33,6 +33,7 @@ export function insertCheapest(level: Level, plan: Plan, p: Placement): Plan {
  */
 export function randomPlan(level: Level, rng: Rng, cands = candidates(level)): Plan {
   let plan: Plan = { placements: [] };
+  if (!cands.length) return plan;
   const target = rng.range(1, 6);
   let tries = 0;
   while (plan.placements.length < target && tries < 20) {
@@ -61,6 +62,7 @@ function score(level: Level, plan: Plan): { s: number; survivors: number; oil: n
 }
 
 function mutate(level: Level, plan: Plan, rng: Rng, cands: Placement[]): Plan {
+  if (!cands.length) return plan;
   const ps = plan.placements.slice();
   const roll = rng.int(4);
   if (roll === 0 && ps.length) {

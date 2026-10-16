@@ -140,7 +140,7 @@ export class Renderer {
     });
     ctx.globalCompositeOperation = 'source-over';
 
-    if (s.showRoutes) this.drawRoutes(level, s.routeAlpha, s.time);
+    if (s.showRoutes) this.drawRoutes(level, s.routeAlpha, s.time, s.routeAlpha > 0.5);
     if (s.keeperPath && s.keeperPath.length > 1) this.drawKeeperPath(level, s.keeperPath, s.time);
 
     // Things standing on tiles.
@@ -388,7 +388,7 @@ export class Renderer {
 
   // ---------------------------------------------------------------- routes
 
-  private drawRoutes(level: Level, alpha: number, time: number) {
+  private drawRoutes(level: Level, alpha: number, time: number, labels: boolean) {
     const { ctx } = this;
     const T = this.tile;
     level.villagers.forEach((v, n) => {
@@ -425,7 +425,7 @@ export class Renderer {
       ctx.lineTo(tipx - Math.cos(ang - 0.5) * T * 0.22, tipy - Math.sin(ang - 0.5) * T * 0.22);
       ctx.lineTo(tipx - Math.cos(ang + 0.5) * T * 0.22, tipy - Math.sin(ang + 0.5) * T * 0.22);
       ctx.fill();
-      if (v.delay > 0) {
+      if (labels && v.delay > 0) {
         const s0 = v.route[0];
         this.label(`wait ${v.delay}`, (s0 % level.w + 0.5) * T, ((s0 / level.w) | 0) * T + T * 0.05, color, T * 0.22);
       }
