@@ -25,6 +25,7 @@
             <span class="rule-icon" id="rule-icon">🐌</span>
             <div><b id="rule-name">Creeper</b> <span id="rule-text"></span></div>
           </div>
+          <div id="hint" class="hint" hidden></div>
           <div id="board-wrap">
             <canvas id="board"></canvas>
             <div id="toast" class="toast" hidden></div>
@@ -61,6 +62,12 @@
         </div>
       </div>
     </div>
+      <div id="draft" class="overlay" hidden>
+        <div class="menu-card">
+          <h2 id="draft-title">Pick a lantern</h2>
+          <div id="draft-cards" class="draft-cards"></div>
+        </div>
+      </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

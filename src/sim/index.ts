@@ -7,3 +7,4 @@ export * from './plan';
 export * from './fog';
 export * from './sim';
 export * from './solver';
+export * from './generate';

@@ -3,6 +3,7 @@
 import { sfx, setMuted, unlockAudio } from './game/audio';
 import { makeEffect, stepEffects, type Effect } from './game/effects';
 import { Renderer, smooth, type Ghost, type Scene, type VillagerSprite } from './game/render';
+import { shareText } from './game/share';
 import { loadSave, writeSave } from './game/storage';
 import { THEME } from './game/theme';
 import { LEVELS } from './levels/levels';
@@ -10,12 +11,16 @@ import {
   FOG_RULES,
   LANTERNS,
   bestOrder,
+  dailyNight,
+  generateNight,
   isPlaceable,
   keeperLeg,
   lightOf,
   parseLevel,
+  Rng,
   planCost,
   simulate,
+  utcDate,
   type Dir,
   type Frame,
   type LanternType,
@@ -51,10 +56,14 @@ const el = {
   menuBtn: $('btn-menu'),
   sound: $('btn-sound'),
   menu: $('menu'),
+  draft: $('draft'),
+  draftCards: $('draft-cards'),
+  draftTitle: $('draft-title'),
   levelGrid: $('level-grid'),
   modes: $('menu-modes'),
   patterns: $<HTMLInputElement>('opt-patterns'),
   tips: $('tips'),
+  hint: $('hint'),
 };
 
 const renderer = new Renderer(el.canvas);
@@ -65,7 +74,12 @@ el.patterns.checked = save.patterns;
 // ------------------------------------------------------------------ state
 
 type Mode = 'planning' | 'playing' | 'result';
-export type Context = { kind: 'story'; index: number };
+export type Context =
+  | { kind: 'story'; index: number }
+  | { kind: 'daily'; date: string; tries: number }
+  | { kind: 'run'; seed: string; night: number; kit: LanternType[]; bonusOil: number; stars: number[] };
+
+const RUN_NIGHTS = 5;
 
 const MAX_LANTERNS = 7;
 const SWALLOW_FLIGHT = 0.7;
@@ -104,7 +118,12 @@ function loadLevel(def: LevelDef, info: Context) {
   effects = [];
   el.result.hidden = true;
 
-  el.nightLabel.textContent = `Night ${info.index + 1} of ${LEVELS.length}`;
+  el.nightLabel.textContent =
+    info.kind === 'story'
+      ? `Night ${info.index + 1} of ${LEVELS.length}`
+      : info.kind === 'daily'
+        ? 'Daily puzzle'
+        : `Lantern Run · night ${info.night} of ${RUN_NIGHTS}`;
   el.levelName.textContent = def.name;
   const fog = FOG_RULES[def.fog];
   el.ruleIcon.textContent = fog.icon;
@@ -114,7 +133,8 @@ function loadLevel(def: LevelDef, info: Context) {
   buildGoal();
   layout();
   refreshPlan();
-  if (def.hint) toast(def.hint, 4000);
+  el.hint.hidden = !def.hint;
+  el.hint.textContent = def.hint ? `✦ ${def.hint}` : '';
 }
 
 function buildGoal() {
@@ -122,13 +142,19 @@ function buildGoal() {
   const dots = level.villagers
     .map((v, n) => `<span class="dot" title="${v.name}" style="background:${THEME.villagers[n % THEME.villagers.length]}"></span>`)
     .join('');
-  const tiers = a === c ? `Get ${c} home` : `★ ${a} · ★★ ${b} · ★★★ ${c} home`;
+  const tiers =
+    a === c ? `Get ${c} home` : b === c ? `★ ${a} · ★★★ ${c} home` : `★ ${a} · ★★ ${b} · ★★★ ${c} home`;
   el.goal.innerHTML = `${dots}<span>${tiers}</span>`;
 }
 
 function buildPalette() {
   el.palette.innerHTML = '';
-  const prev = ctxInfo.kind === 'story' && ctxInfo.index > 0 ? LEVELS[ctxInfo.index - 1].lanterns : null;
+  const prev =
+    ctxInfo.kind === 'story' && ctxInfo.index > 0
+      ? LEVELS[ctxInfo.index - 1].lanterns
+      : ctxInfo.kind === 'run' && ctxInfo.kit.length
+        ? ['basic', ...ctxInfo.kit.slice(0, -1)]
+        : null;
   level.def.lanterns.forEach((type, k) => {
     const spec = LANTERNS[type];
     const b = document.createElement('button');
@@ -295,6 +321,7 @@ function startPlay() {
   }
   result = simulate(level, { placements });
   mode = 'playing';
+  if (ctxInfo.kind === 'daily') ctxInfo.tries++;
   const turns = result.frames.length - 1;
   // Whole night fits in ~18 s (well under the 20 s cap), and short nights don't drag.
   play = { idx: 0, t: 0, turnDur: Math.min(0.62, Math.max(0.3, 18 / Math.max(1, turns))), fired: 0, endTimer: 0 };
@@ -304,6 +331,10 @@ function startPlay() {
   el.result.hidden = true;
   hideToast();
   sfx.play();
+  // Each lantern flares up as the night begins.
+  placements.forEach((p, k) => {
+    effects.push(makeEffect('ring', p.x + 0.5, p.y + 0.5, { life: 0.5 + k * 0.08, color: '#ffe9a8', size: 0.5 }));
+  });
   syncButtons();
 }
 
@@ -400,28 +431,43 @@ function showResult() {
   const won = r.won;
   if (won) sfx.win();
   else sfx.lose();
+  let share = '';
   if (ctxInfo.kind === 'story') {
     const id = level.def.id;
     save.stars[id] = Math.max(save.stars[id] ?? 0, r.stars);
     writeSave(save);
+  } else if (ctxInfo.kind === 'daily') {
+    share = shareText(ctxInfo.date, level.def, r, ctxInfo.tries);
+    const prevBest = save.daily[ctxInfo.date];
+    if (!prevBest || r.stars > prevBest.stars) save.daily[ctxInfo.date] = { stars: r.stars, share };
+    writeSave(save);
+  } else {
+    ctxInfo.stars[ctxInfo.night - 1] = Math.max(ctxInfo.stars[ctxInfo.night - 1] ?? 0, r.stars);
   }
   const starsHtml = [1, 2, 3].map((k) => `<span class="${k <= r.stars ? '' : 'off'}">★</span>`).join('');
   const title = won ? (r.stars === 3 ? 'Everyone’s home!' : 'Safe enough!') : 'The fog won this one';
   const line = `${r.survivors} of ${r.total} villager${r.total > 1 ? 's' : ''} home · ${r.cost.oil}/${level.def.oil} oil`;
-  const hasNext = ctxInfo.kind === 'story' && ctxInfo.index < LEVELS.length - 1;
+  const hasNext =
+    (ctxInfo.kind === 'story' && ctxInfo.index < LEVELS.length - 1) || (ctxInfo.kind === 'run' && ctxInfo.night < RUN_NIGHTS);
+  const runDone = ctxInfo.kind === 'run' && ctxInfo.night === RUN_NIGHTS && won;
+  const runTotal = ctxInfo.kind === 'run' ? ctxInfo.stars.reduce((a, b) => a + (b ?? 0), 0) : 0;
   el.result.innerHTML = `
     <h2>${title}</h2>
     <div class="stars">${starsHtml}</div>
     <p>${line}${!won && placements.length ? '<br>Your lanterns are still where you left them.' : ''}</p>
+    ${share ? `<pre id="r-share">${share}</pre>` : ''}
+    ${runDone ? `<p><b>Run complete: ${runTotal} of ${RUN_NIGHTS * 3} stars.</b></p>` : ''}
     <div class="row">
       <button id="r-retry">↺ Retry</button>
+      ${share ? '<button id="r-copy" class="primary">Copy result</button>' : ''}
       ${won && hasNext ? '<button id="r-next" class="primary">Next night →</button>' : ''}
-      ${won && !hasNext ? '<button id="r-menu" class="primary">Back to map</button>' : ''}
+      ${won && !hasNext && !share ? '<button id="r-menu" class="primary">Back to map</button>' : ''}
     </div>`;
   el.result.hidden = false;
   $('r-retry').addEventListener('click', retry);
   document.getElementById('r-next')?.addEventListener('click', nextLevel);
   document.getElementById('r-menu')?.addEventListener('click', openMenu);
+  document.getElementById('r-copy')?.addEventListener('click', () => copyText(share));
   syncButtons();
 }
 
@@ -437,10 +483,115 @@ function retry() {
 }
 
 function nextLevel() {
+  if (ctxInfo.kind === 'run') {
+    showDraft({ ...ctxInfo, night: ctxInfo.night + 1 });
+    return;
+  }
   if (ctxInfo.kind !== 'story') return;
   const n = ctxInfo.index + 1;
   if (n < LEVELS.length) loadLevel(LEVELS[n], { kind: 'story', index: n });
   syncButtons();
+}
+
+// ------------------------------------------------------------------ daily & run
+
+/** Generation can take a moment; let the toast paint first. */
+function brew(fn: () => void) {
+  toast('Brewing tonight’s fog…', 4000);
+  setTimeout(() => {
+    fn();
+    if (el.toast.textContent?.startsWith('Brewing')) hideToast();
+    syncButtons();
+  }, 40);
+}
+
+function startDaily() {
+  closeMenu();
+  const date = utcDate(new Date());
+  brew(() => {
+    const g = dailyNight(date);
+    loadLevel(g.def, { kind: 'daily', date, tries: 0 });
+    toast(`Today’s fog: ${FOG_RULES[g.def.fog].name}. Same puzzle for everyone.`, 3000);
+  });
+}
+
+type Pick = { kind: 'lantern'; type: LanternType } | { kind: 'oil' };
+
+function showDraft(run: Extract<Context, { kind: 'run' }>) {
+  // Three random choices, seeded by the run so a run is reproducible.
+  const r = new Rng(`draft:${run.seed}:${run.night}`);
+  const fresh = (['beacon', 'reflector', 'flare', 'bait'] as LanternType[]).filter((t) => !run.kit.includes(t));
+  const picks: Pick[] = r.shuffle(fresh.slice()).slice(0, 3).map((type) => ({ kind: 'lantern', type }) as Pick);
+  while (picks.length < 3) picks.push({ kind: 'oil' });
+  el.draftTitle.textContent = `Night ${run.night} of ${RUN_NIGHTS}: pick something for your satchel`;
+  el.draftCards.innerHTML = '';
+  picks.forEach((p, k) => {
+    if (k > 0 && p.kind === 'oil' && picks[k - 1].kind === 'oil') return;
+    const b = document.createElement('button');
+    b.className = 'draft-card';
+    if (p.kind === 'lantern') {
+      const spec = LANTERNS[p.type];
+      const c = document.createElement('canvas');
+      c.width = 96;
+      c.height = 96;
+      renderer.drawLantern(p.type, 48, 52, 88, 1, 1, 0, c.getContext('2d')!);
+      b.appendChild(c);
+      b.insertAdjacentHTML('beforeend', `<b>${spec.name}</b><span>${spec.rule}</span><small>${spec.cost} oil</small>`);
+    } else {
+      b.insertAdjacentHTML('beforeend', `<div class="big">🛢️</div><b>Deep Pockets</b><span>+2 oil every night from now on.</span>`);
+    }
+    b.addEventListener('click', () => {
+      unlockAudio();
+      sfx.place();
+      const next = {
+        ...run,
+        kit: p.kind === 'lantern' ? [...run.kit, p.type] : run.kit,
+        bonusOil: run.bonusOil + (p.kind === 'oil' ? 2 : 0),
+      };
+      el.draft.hidden = true;
+      brew(() => {
+        const g = generateNight(`run:${next.seed}:${next.night}`, {
+          lanterns: ['basic', ...next.kit],
+          slack: 1 + next.bonusOil,
+          id: `run-${next.seed}-${next.night}`,
+          name: `Night ${next.night}`,
+        });
+        loadLevel(g.def, next);
+      });
+    });
+    el.draftCards.appendChild(b);
+  });
+  el.result.hidden = true;
+  el.draft.hidden = false;
+}
+
+function startRun() {
+  closeMenu();
+  const seed = Math.floor(Math.random() * 1e9).toString(36);
+  showDraft({ kind: 'run', seed, night: 1, kit: [], bonusOil: 0, stars: [] });
+}
+
+function copyText(text: string) {
+  const done = () => toast('Copied! Paste it anywhere.', 1600);
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+}
+
+function fallbackCopy(text: string, done: () => void) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    done();
+  } catch {
+    toast('Select the text above to copy it.', 2000);
+  }
+  ta.remove();
 }
 
 function syncButtons() {
@@ -597,6 +748,18 @@ function openMenu() {
     });
     el.levelGrid.appendChild(b);
   });
+  const today = utcDate(new Date());
+  const daily = save.daily[today];
+  el.modes.innerHTML = '';
+  const d = document.createElement('button');
+  d.className = 'primary';
+  d.innerHTML = `☀︎ Daily puzzle${daily ? ` · ${'★'.repeat(daily.stars)}` : ''}`;
+  d.addEventListener('click', startDaily);
+  const r = document.createElement('button');
+  r.innerHTML = '🎲 Lantern Run';
+  r.title = 'Five generated nights. Draft a new lantern before each one.';
+  r.addEventListener('click', startRun);
+  el.modes.append(d, r);
   el.menu.hidden = false;
 }
 function closeMenu() {

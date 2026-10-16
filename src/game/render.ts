@@ -167,13 +167,42 @@ export class Renderer {
     s.villagers.forEach((v) => above(v) && this.drawVillager(v, s.time));
     if (s.preview) this.drawPreview(level, s.preview, s.time);
 
+    this.drawFireflies(s);
     for (const e of s.effects) this.drawEffect(e);
 
     if (s.ghost) {
       const p = s.ghost.placement;
       this.label(s.ghost.label, (p.x + 0.5) * T, p.y * T - 4, s.ghost.ok ? THEME.text : THEME.danger);
     }
+    // Soft vignette pulls the eye to the middle of the village.
+    const v = ctx.createRadialGradient(this.cssW / 2, this.cssH / 2, Math.min(this.cssW, this.cssH) * 0.35, this.cssW / 2, this.cssH / 2, Math.max(this.cssW, this.cssH) * 0.75);
+    v.addColorStop(0, 'rgba(10, 8, 24, 0)');
+    v.addColorStop(1, 'rgba(10, 8, 24, 0.35)');
+    ctx.fillStyle = v;
+    ctx.fillRect(-20, -20, this.cssW + 40, this.cssH + 40);
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+  }
+
+  /** A few fireflies drifting over clear ground. They hide in the fog. */
+  private drawFireflies(s: Scene) {
+    const { ctx } = this;
+    const T = this.tile;
+    const { level } = s;
+    ctx.globalCompositeOperation = 'lighter';
+    for (let k = 0; k < 9; k++) {
+      const x = (level.w / 2) * (1 + 0.9 * Math.sin(s.time * 0.13 * (1 + (k % 3) * 0.3) + k * 2.4));
+      const y = (level.h / 2) * (1 + 0.9 * Math.sin(s.time * 0.11 * (1 + (k % 4) * 0.2) + k * 1.3));
+      const i = Math.min(level.h - 1, Math.max(0, Math.floor(y))) * level.w + Math.min(level.w - 1, Math.max(0, Math.floor(x)));
+      if (s.fogTo[i]) continue;
+      const blink = Math.max(0, Math.sin(s.time * (1.5 + (k % 5) * 0.3) + k * 4));
+      if (blink <= 0) continue;
+      const g = ctx.createRadialGradient(x * T, y * T, 0, x * T, y * T, T * 0.12);
+      g.addColorStop(0, `rgba(230, 255, 150, ${0.8 * blink})`);
+      g.addColorStop(1, 'rgba(230, 255, 150, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x * T - T * 0.12, y * T - T * 0.12, T * 0.24, T * 0.24);
+    }
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   // ---------------------------------------------------------------- tiles
