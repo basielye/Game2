@@ -479,7 +479,11 @@ const PlantArt = (() => {
     basket:     { name: 'Seagrass Basket', stops: ['#8a6434', '#bf9658', '#d6b077', '#b48a4f', '#7a5a2c'], rim: '#c9a064' },
     nursery:    { name: 'Nursery Pot', stops: ['#141414', '#2a2a2a', '#3a3a3a', '#262626', '#101010'], rim: '#2c2c2c' },
     blush:      { name: 'Blush Stoneware', stops: ['#b8857e', '#dfb0a7', '#efc8c0', '#d6a39a', '#a8746d'], rim: '#e6b9b1' },
-    gilded:     { name: 'Gilded Black', stops: ['#0f0f10', '#2a2a2c', '#3c3c3f', '#232325', '#0b0b0c'], rim: '#c9a54a' }
+    gilded:     { name: 'Gilded Black', stops: ['#0f0f10', '#2a2a2c', '#3c3c3f', '#232325', '#0b0b0c'], rim: '#c9a54a' },
+    // premium pots, sold in the shop
+    delft:      { name: 'Delft Blue', stops: ['#b9bcc4', '#e9ecf2', '#fbfcff', '#e2e6ee', '#aeb3be'], rim: '#f4f6fb', premium: true },
+    goldleaf:   { name: 'Hammered Gold', stops: ['#7a5a12', '#c99a2e', '#f3d27a', '#c3922a', '#6e4e0e'], rim: '#e8c45a', premium: true },
+    speckle:    { name: 'Hand-thrown Speckle', stops: ['#b8ab94', '#e3d8c2', '#f2ead9', '#ddd1b8', '#a99c84'], rim: '#3f7a78', premium: true }
   };
   function potSVG(style, S, R) {
     const P = POTS[style] || POTS.terracotta, id = 'pt' + (++UID);
@@ -509,6 +513,17 @@ const PlantArt = (() => {
       for (let i = -3; i <= 3; i++) s += `<path d="M${f(i * rx * .27)} ${f(-h + rim)}L${f(i * bx * .27)} 0" stroke="#555" stroke-width="${f(1.4 * S)}" opacity=".5"/>`;
     } else if (style === 'blush') {
       for (let i = 0; i < 50; i++) s += `<circle cx="${f((R() - .5) * bx * 1.9)}" cy="${f(-R() * (h - rim))}" r="${f(.4 + R() * .9)}" fill="#7a4a44" opacity=".4"/>`;
+    } else if (style === 'delft') {
+      const b = '#2a4fa0', cy = -h * .48;
+      s += `<path d="M${f(-rx * .92)} ${f(-h + rim + 6 * S)}L${f(rx * .92)} ${f(-h + rim + 6 * S)}M${f(-bx * 1.02)} ${f(-9 * S)}L${f(bx * 1.02)} ${f(-9 * S)}" stroke="${b}" stroke-width="${f(2.4 * S)}"/>`;
+      for (let i = 0; i < 6; i++) { const a = i * 60; s += `<ellipse cx="0" cy="${f(cy - 9 * S)}" rx="${f(4 * S)}" ry="${f(9 * S)}" fill="none" stroke="${b}" stroke-width="${f(1.6 * S)}" transform="rotate(${a} 0 ${f(cy)})"/>`; }
+      s += `<circle cx="0" cy="${f(cy)}" r="${f(3.5 * S)}" fill="${b}"/>`;
+      for (const sx of [-1, 1]) s += `<path d="M${f(sx * 16 * S)} ${f(cy + 8 * S)}q${f(sx * 14 * S)} ${f(-4 * S)} ${f(sx * 22 * S)} ${f(-18 * S)}m${f(-sx * 8 * S)} ${f(8 * S)}q${f(sx * 6 * S)} ${f(-6 * S)} ${f(sx * 2 * S)} ${f(-12 * S)}" stroke="${b}" stroke-width="${f(1.5 * S)}" fill="none"/><ellipse cx="${f(sx * 30 * S)}" cy="${f(cy - 2 * S)}" rx="${f(5 * S)}" ry="${f(2.4 * S)}" fill="${b}" opacity=".85" transform="rotate(${sx * -40} ${f(sx * 30 * S)} ${f(cy - 2 * S)})"/>`;
+    } else if (style === 'goldleaf') {
+      for (let i = 0; i < 26; i++) s += `<ellipse cx="${f((R() - .5) * bx * 1.8)}" cy="${f(-R() * (h - rim))}" rx="${f((3 + R() * 4) * S)}" ry="${f((2 + R() * 3) * S)}" fill="${R() < .5 ? '#fff3c0' : '#6e4e0e'}" opacity=".28"/>`;
+    } else if (style === 'speckle') {
+      for (let i = 0; i < 70; i++) s += `<circle cx="${f((R() - .5) * bx * 1.9)}" cy="${f(-R() * (h - rim))}" r="${f(.4 + R() * 1)}" fill="#4a3a2a" opacity=".55"/>`;
+      s += `<path d="M${f(-rx * .95)} ${f(-h + rim)}L${f(rx * .95)} ${f(-h + rim)}L${f(rx * .9)} ${f(-h + rim + 9 * S)}Q${f(rx * .5)} ${f(-h + rim + 16 * S)} ${f(rx * .2)} ${f(-h + rim + 9 * S)}Q${f(-rx * .2)} ${f(-h + rim + 18 * S)} ${f(-rx * .55)} ${f(-h + rim + 10 * S)}L${f(-rx * .9)} ${f(-h + rim + 8 * S)}Z" fill="#3f7a78" opacity=".9"/>`;
     } else if (style === 'gilded') {
       s += `<path d="M${f(-bx * 1.02)} ${f(-10 * S)}L${f(bx * 1.02)} ${f(-10 * S)}" stroke="#c9a54a" stroke-width="${f(3 * S)}"/>`;
     }

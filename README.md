@@ -21,6 +21,16 @@ Open `index.html` in a browser. There are no dependencies and no build step. Pro
 There are five rooms: *Monstera Corner*, *The Velvet Wall* (Philodendrons and Anthuriums), *Alocasia Grove*,
 *The Shade House* (Calatheas and prayer plants) and the *Hanging Gallery* (pothos, Hoyas and string-of-pearls).
 
+## The Potting Shed (shop)
+
+Coins from levels are spent in the shop (the bag button, or tap your coin count):
+
+- **Boosters**: Dragonfly, Seed Bomb, Prism Dahlia, Trowel, Hedge Trim, or the Gardener's Kit bundle.
+- **Cuttings**: mystery cuttings of plants you have not found yet, priced by rarity. They go into the Herbarium and can be
+  planted in their room by tapping a planted spot.
+- **Pots**: premium Delft Blue, Hand-thrown Speckle and Hammered Gold pots, usable for any plant.
+- **Decor**: fairy lights, a Persian rug, a sleeping cat and a canary cage that appear in every room (and can be hidden).
+
 ## Puzzle mechanics
 
 | Match | Creates | Effect |

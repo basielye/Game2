@@ -15,11 +15,13 @@
     level: 1, stars: 0, coins: 400, zone: 'palm', unlocked: ['palm'],
     boosters: { dragonfly: 1, bomb: 1, rainbow: 0, trowel: 3, rake: 2 },
     zones: Object.fromEntries(ZONES.map(z => [z.id, { done: [], fixtures: {}, choices: {}, pots: {}, grows: 0, complete: false }])),
-    found: [], introSeen: false, settings: { sound: true, music: true }
+    found: [], introSeen: false, settings: { sound: true, music: true },
+    owned: { pots: [], decor: [] }, decorHidden: []
   });
   let S;
   try { S = Object.assign(fresh(), JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) { S = fresh(); }
   for (const z of ZONES) if (!S.zones[z.id]) S.zones[z.id] = fresh().zones[z.id];
+  S.owned = Object.assign({ pots: [], decor: [] }, S.owned); S.decorHidden = S.decorHidden || [];
   const save = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { } };
   Sfx.setSound(S.settings.sound); Sfx.setMusic(S.settings.music);
 
@@ -49,6 +51,7 @@
   }
   function renderScene(opts = {}) {
     const st = opts.state || zst();
+    opts.decor = S.owned.decor.filter(d => !S.decorHidden.includes(d));
     $('#scene').innerHTML = Scene.render(zone(), st, opts);
     $$('#scene .slot').forEach(g => g.addEventListener('click', () => onSlot(g.dataset.slot)));
   }
@@ -99,6 +102,7 @@
   $('#btnPlay').onclick = () => { Sfx.init(); Sfx.tap(); levelIntro(); };
   $('#btnHerb').onclick = () => { Sfx.init(); Sfx.tap(); openHerbarium(); };
   $('#btnSettings').onclick = () => { Sfx.init(); openSettings(); };
+  $('#btnShop').onclick = $('#coinPill').onclick = () => { Sfx.init(); Sfx.tap(); openShop(); };
   $('#sheet').addEventListener('click', e => { if (e.target.closest('[data-close]')) closeSheet(); });
 
   const TASK_ICONS = { fixture: '🛠', plant: '🌱', pot: '🏺', grow: '💧' };
@@ -160,7 +164,7 @@
   function choose(slotId, kind, task) {
     return new Promise(resolve => {
       const z = zone(), sl = z.slots[slotId], st = zst();
-      const opts = kind === 'plant' ? sl.options : sl.pots;
+      const opts = kind === 'plant' ? plantOptions(z, sl) : sl.pots.concat(S.owned.pots.filter(p => !sl.pots.includes(p)));
       let cur = kind === 'plant' ? (st.choices[slotId] || null) : ((st.pots && st.pots[slotId]) || sl.pot);
       const preview = () => {
         const tmp = JSON.parse(JSON.stringify(st));
@@ -198,6 +202,12 @@
         resolve(true);
       };
     });
+  }
+  /* A slot offers its three varieties, plus any cuttings from this room you have collected. */
+  const TRAILING = ['trailing', 'hoya', 'pearls', 'hearts'];
+  function plantOptions(z, sl) {
+    const extra = SPECIES.filter(sp => sp.zone === z.id && S.found.includes(sp.id) && !sl.options.includes(sp.id) && (!sl.hang || TRAILING.includes(sp.form)));
+    return sl.options.concat(extra.map(sp => sp.id));
   }
   function onSlot(id) {
     const st = zst();
@@ -403,6 +413,116 @@
     c.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { stage = +b.dataset.s; c.querySelectorAll('[data-s]').forEach(x => x.classList.toggle('on', x === b)); paint(); Sfx.tap(); });
     c.querySelector('[data-c]').onclick = closeModal;
   }
+
+  /* ───────────── Shop ───────────── */
+  const SHOP_BOOSTERS = [
+    { k: 'dragonfly', price: 250, desc: 'Starts a level already on the board. Clears a whole row or column.' },
+    { k: 'bomb', price: 300, desc: 'Starts a level already on the board. Blasts a big circle of tiles.' },
+    { k: 'rainbow', price: 450, desc: 'Starts a level already on the board. Clears every tile of one kind.' },
+    { k: 'trowel', price: 200, name: 'Trowel', icon: '⛏', desc: 'Use during a level to dig up any single tile, pot or moss.' },
+    { k: 'rake', price: 250, name: 'Hedge Trim', icon: '⚟', desc: 'Use during a level to clear an entire row.' },
+    { k: 'kit', price: 1500, name: 'Gardener’s Kit', icon: '🧺', desc: '2 Dragonflies, 2 Seed Bombs, 1 Prism Dahlia, 2 Trowels and 2 Hedge Trims. Saves 600 coins.' }
+  ];
+  const CUTTING_PRICE = [0, 300, 500, 800, 1200, 2000];
+  const DECOR_ITEMS = [
+    { k: 'lights', name: 'Fairy Lights', price: 900, desc: 'Warm twinkling bulbs strung along the roof beam.' },
+    { k: 'rug', name: 'Persian Rug', price: 1100, desc: 'A hand-knotted rug in madder red and indigo.' },
+    { k: 'cat', name: 'Sleeping Cat', price: 1500, desc: 'A ginger tabby who naps on the warm tiles. Not plant-safe, but very cute.' },
+    { k: 'birdcage', name: 'Canary Cage', price: 1300, desc: 'A brass cage with a cheerful yellow canary.' }
+  ];
+  const PREMIUM_POTS = [['delft', 700], ['speckle', 900], ['goldleaf', 1400]];
+  let shopTab = 'boosters';
+  function spend(price, btn) {
+    if (S.coins < price) {
+      Sfx.bad();
+      btn.animate([{ transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'none' }], 220);
+      const t = btn.textContent; btn.textContent = `Need ${price - S.coins} more`; setTimeout(() => { btn.textContent = t; }, 1300);
+      return false;
+    }
+    S.coins -= price; save(); updateHud('#coinPill'); Sfx.coin();
+    $('#shopCoins').textContent = S.coins;
+    return true;
+  }
+  function openShop(tab) {
+    if (tab) shopTab = tab;
+    const tabs = [['boosters', 'Boosters'], ['cuttings', 'Cuttings'], ['pots', 'Pots'], ['decor', 'Decor']];
+    const c = modal(`<button class="round close-x" data-c>✕</button><h2>The Potting Shed</h2>
+      <p class="shop-wallet"><span class="ico coin">●</span><b id="shopCoins">${S.coins}</b> coins</p>
+      <div class="shop-tabs">${tabs.map(([k, n]) => `<button data-tab="${k}" class="${k === shopTab ? 'on' : ''}">${n}</button>`).join('')}</div>
+      <div class="shop-body" id="shopBody"></div>`, 'shop');
+    c.querySelector('[data-c]').onclick = () => { closeModal(); goHome(); };
+    c.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
+      shopTab = b.dataset.tab; Sfx.tap();
+      c.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b)); fillShop();
+    });
+    fillShop();
+  }
+  function shopItem({ art, name, sub, desc, btn, owned }) {
+    return `<div class="shop-item${owned ? ' owned' : ''}"><div class="si-art">${art}</div><div class="si-txt"><b>${name}</b>${sub ? `<small>${sub}</small>` : ''}<p>${desc}</p></div>${btn}</div>`;
+  }
+  function fillShop() {
+    const body = $('#shopBody'); let h = '';
+    if (shopTab === 'boosters') {
+      h = SHOP_BOOSTERS.map(b => {
+        const B = BOOSTERS[b.k], art = B ? `<img src="${Match3.Sprites.url(B.sprite)}" alt="">` : `<span class="si-emoji">${b.icon}</span>`;
+        return shopItem({ art, name: B ? B.name : b.name, sub: b.k === 'kit' ? 'Bundle' : `You have ${S.boosters[b.k] || 0}`, desc: b.desc, btn: `<button class="btn gold sm" data-buy="${b.k}">● ${b.price}</button>` });
+      }).join('');
+    } else if (shopTab === 'cuttings') {
+      const list = SPECIES.filter(sp => !S.found.includes(sp.id) || shopFresh.has(sp.id));
+      h = `<p class="shop-note">Each cutting goes into your Herbarium. You can also plant it in its room: tap a planted spot there to swap it in.</p>`;
+      h += list.length ? list.map(sp => {
+        const fresh = shopFresh.has(sp.id), z = ZONE_BY_ID[sp.zone];
+        return shopItem({
+          art: `<div class="${fresh ? '' : 'silhouette'}">${PlantArt.leafPortrait(sp.id)}</div>`,
+          name: fresh ? sp.name : `Mystery ${sp.genus}`, sub: `<span class="rar rar-${sp.rarity}">${RARITY[sp.rarity]}</span> · ${z.name}`,
+          desc: fresh ? 'Added to your Herbarium!' : 'A rooted cutting, wrapped in damp moss. Who knows what will unfurl?',
+          btn: fresh ? `<span class="si-done">✓</span>` : `<button class="btn gold sm" data-cut="${sp.id}">● ${CUTTING_PRICE[sp.rarity]}</button>`, owned: fresh
+        });
+      }).join('') : `<p class="shop-note">You have collected every plant. A true botanist!</p>`;
+    } else if (shopTab === 'pots') {
+      h = `<p class="shop-note">Premium pots can be used for any plant in any room. Tap a planted spot, then "Change pot instead".</p>`;
+      h += PREMIUM_POTS.map(([k, price]) => {
+        const own = S.owned.pots.includes(k);
+        return shopItem({ art: `<svg viewBox="-75 -110 150 125">${PlantArt.potSVG(k, 1, U.rng(5)).svg}</svg>`, name: PlantArt.POTS[k].name, desc: { delft: 'Hand-painted tin-glaze in the Dutch tradition, with cobalt flowers.', speckle: 'Wheel-thrown stoneware with iron speckles and a dripping celadon rim.', goldleaf: 'Hammered brass finish that catches the light.' }[k], btn: own ? `<span class="si-done">Owned</span>` : `<button class="btn gold sm" data-pot="${k}">● ${price}</button>`, owned: own });
+      }).join('');
+    } else {
+      h = `<p class="shop-note">Decorations appear in every room of the glasshouse.</p>`;
+      h += DECOR_ITEMS.map(d => {
+        const own = S.owned.decor.includes(d.k), shown = own && !S.decorHidden.includes(d.k);
+        return shopItem({ art: Scene.decorPreview(d.k), name: d.name, desc: d.desc, owned: own,
+          btn: own ? `<button class="btn alt sm" data-show="${d.k}">${shown ? 'Shown' : 'Hidden'}</button>` : `<button class="btn gold sm" data-decor="${d.k}">● ${d.price}</button>` });
+      }).join('');
+    }
+    body.innerHTML = h;
+    body.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => {
+      const it = SHOP_BOOSTERS.find(x => x.k === b.dataset.buy);
+      if (!spend(it.price, b)) return;
+      if (it.k === 'kit') { const add = { dragonfly: 2, bomb: 2, rainbow: 1, trowel: 2, rake: 2 }; for (const k in add) S.boosters[k] = (S.boosters[k] || 0) + add[k]; }
+      else S.boosters[it.k] = (S.boosters[it.k] || 0) + 1;
+      save(); fillShop();
+    });
+    body.querySelectorAll('[data-cut]').forEach(b => b.onclick = () => {
+      const sp = SPECIES_BY_ID[b.dataset.cut];
+      if (!spend(CUTTING_PRICE[sp.rarity], b)) return;
+      discover(sp.id); shopFresh.add(sp.id); save(); Sfx.sparkle(); fillShop(); updateHud();
+    });
+    body.querySelectorAll('[data-pot]').forEach(b => b.onclick = () => {
+      const k = b.dataset.pot, price = PREMIUM_POTS.find(p => p[0] === k)[1];
+      if (!spend(price, b)) return;
+      S.owned.pots.push(k); save(); Sfx.sparkle(); fillShop();
+    });
+    body.querySelectorAll('[data-decor]').forEach(b => b.onclick = () => {
+      const d = DECOR_ITEMS.find(x => x.k === b.dataset.decor);
+      if (!spend(d.price, b)) return;
+      S.owned.decor.push(d.k); save(); Sfx.sparkle(); fillShop(); renderScene();
+    });
+    body.querySelectorAll('[data-show]').forEach(b => b.onclick = () => {
+      const k = b.dataset.show, i = S.decorHidden.indexOf(k);
+      if (i >= 0) S.decorHidden.splice(i, 1); else S.decorHidden.push(k);
+      save(); Sfx.tap(); fillShop(); renderScene();
+    });
+  }
+  const shopFresh = new Set();
 
   /* ───────────── Boot ───────────── */
   goHome();

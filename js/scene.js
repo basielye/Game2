@@ -312,11 +312,57 @@ const Scene = (() => {
     return s;
   }
 
+  /* Shop decorations, shared by every room. */
+  const DECOR = {
+    lights() {
+      let s = `<path d="M0 48Q200 92 400 52Q600 92 800 52Q1000 92 1200 52Q1400 92 1600 48" stroke="#3a3a2a" stroke-width="1.6" fill="none"/>`;
+      for (let x = 30; x < W; x += 50) {
+        const seg = Math.floor(x / 200), t = (x - seg * 200) / 200, y = 50 + 4 * 38 * t * (1 - t);
+        s += `<circle class="twinkle" style="animation-delay:${((x * 7) % 23) / 10}s" cx="${x}" cy="${f(y + 7)}" r="13" fill="#ffe7a0" opacity=".35"/><circle cx="${x}" cy="${f(y + 7)}" r="4.5" fill="#fff4c8"/>`;
+      }
+      return `<g class="decor-lights">${s}</g>`;
+    },
+    rug() {
+      return `<g class="decor-rug"><path d="M520 818L1080 818L1180 896L420 896Z" fill="#7a2a2a"/><path d="M548 826L1052 826L1140 888L460 888Z" fill="none" stroke="#e2c27a" stroke-width="5"/>
+        <path d="M590 834L1010 834L1080 880L520 880Z" fill="#23365a"/><path d="M800 838L900 857L800 876L700 857Z" fill="#c9862e"/><path d="M800 846L860 857L800 868L740 857Z" fill="#7a2a2a"/>
+        ${[620, 980].map(x => `<path d="M${x} 845l30 12l-30 12l-30 -12Z" fill="#e2c27a" opacity=".8"/>`).join('')}
+        ${Array.from({ length: 40 }, (_, i) => `<path d="M${422 + i * 19.5} 896v8" stroke="#e8dcc0" stroke-width="2"/>`).join('')}</g>`;
+    },
+    cat() {
+      return `<g class="decor-cat" transform="translate(1010 884)"><ellipse rx="66" ry="10" cy="6" fill="#000" opacity=".2"/>
+        <g class="breathe"><path d="M-58 2Q-62 -40 -10 -44Q48 -46 56 -8Q58 6 40 6H-50Z" fill="#e0892e"/>
+        ${[-30, -12, 6, 24].map(x => `<path d="M${x} -42q4 16 -2 30" stroke="#b25e14" stroke-width="5" fill="none" stroke-linecap="round"/>`).join('')}
+        <path d="M40 4Q76 6 70 -14Q66 -26 52 -20" stroke="#e0892e" stroke-width="11" fill="none" stroke-linecap="round"/>
+        <path d="M-74 4Q-80 -26 -52 -30Q-28 -30 -26 -6Q-26 6 -40 6Z" fill="#ec9a3e"/><path d="M-70 -18L-74 -40L-58 -28ZM-44 -30L-36 -48L-30 -26Z" fill="#e0892e"/>
+        <path d="M-68 -14q5 3 9 0M-48 -16q5 3 9 0" stroke="#5a2e08" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M-56 -8l2 2l2 -2Z" fill="#c2566a"/>
+        <path d="M-50 -4l-26 -2M-50 -2l-24 4" stroke="#fff" stroke-width=".8" opacity=".8"/></g></g>`;
+    },
+    birdcage() {
+      const x = 1390, y = 250;
+      let bars = '';
+      for (let i = -4; i <= 4; i++) bars += `<path d="M${x + i * 9} ${y}V${y - 70}Q${x + i * 9} ${y - 104} ${x} ${y - 112}" stroke="#c9a54a" stroke-width="2" fill="none"/>`;
+      return `<g class="decor-cage"><path d="M${x} 34V${y - 122}" stroke="#777" stroke-width="2"/><circle cx="${x}" cy="${y - 118}" r="6" fill="none" stroke="#c9a54a" stroke-width="3"/>
+        <ellipse cx="${x}" cy="${y}" rx="42" ry="8" fill="#a8822a"/>
+        <g class="hop"><path d="M${x - 20} ${y - 38}h40" stroke="#8a6a3a" stroke-width="3"/>
+        <ellipse cx="${x - 2}" cy="${y - 50}" rx="12" ry="9" fill="#f6d33a"/><circle cx="${x + 8}" cy="${y - 59}" r="6.5" fill="#f6d33a"/><path d="M${x + 14} ${y - 60}l6 2l-6 2Z" fill="#e88a2a"/><circle cx="${x + 10}" cy="${y - 61}" r="1.3" fill="#222"/><path d="M${x - 13} ${y - 50}l-10 6l4 -9Z" fill="#e8c02a"/></g>
+        ${bars}<path d="M${x - 40} ${y - 70}H${x + 40}" stroke="#c9a54a" stroke-width="2"/></g>`;
+    }
+  };
+  function decorPreview(k) {
+    const vb = { lights: '0 20 420 110', rug: '400 800 800 110', cat: '920 820 180 80', birdcage: '1330 100 120 170' }[k];
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" class="decor-prev">${DECOR[k]()}</svg>`;
+  }
+
   /* st: { fixtures:{}, choices:{}, pots:{}, grows:n, complete } */
   function render(z, st, opts = {}) {
     const fx = st.fixtures || {}, hl = opts.highlight;
+    const dc = opts.decor || [];
     let s = sky(z) + glass(z, fx.glass) + kneeWall(z) + floor(z, fx.floor) + lamp(z, fx.lamp);
+    if (dc.includes('rug')) s += DECOR.rug();
+    if (dc.includes('lights')) s += DECOR.lights();
     const ents = [];
+    if (dc.includes('cat')) ents.push({ y: 884, svg: DECOR.cat() });
+    if (dc.includes('birdcage')) ents.push({ y: 0, svg: DECOR.birdcage() });
     ents.push({ y: 770, svg: bench(z, fx.bench) });
     const dec = decor(z, fx.decor);
     if (dec) ents.push({ y: z.decor === 'mistline' ? -1 : 860, svg: dec });
@@ -331,7 +377,7 @@ const Scene = (() => {
     if (task.kind === 'plant' || task.kind === 'pot') { const sl = z.slots[task.target]; return [sl.x, sl.hang ? sl.y : sl.y - 120 * sl.s]; }
     return { floor: [800, 800], glass: [800, 300], bench: [1250, 600], lamp: [800, 135], decor: [z.decor === 'mistline' ? 800 : z.decor === 'fountain' ? 1480 : z.decor === 'pond' ? 1060 : z.decor === 'bistro' ? 800 : 560, z.decor === 'mistline' ? 80 : 800] }[task.target] || [800, 500];
   }
-  return { render, anchor, W, H };
+  return { render, anchor, decorPreview, W, H };
 })();
 
 const Portrait = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="48" fill="#e9dfc6"/>
