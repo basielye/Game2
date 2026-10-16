@@ -1,7 +1,10 @@
 /* Match-3 engine: board model, special pieces, cascades, effects and canvas rendering. */
 const Match3 = (() => {
-  const TILE_NAMES = ['Leaf', 'Dew Drop', 'Sunflower', 'Blossom', 'Plum', 'Acorn'];
-  const TILE_COLORS = ['#4fa43a', '#3aa6e0', '#f2c230', '#f27aa8', '#8e4fc4', '#c9793a'];
+  const TILE_NAMES = ['Leaf', 'Tongue-Out Pal', 'Sunflower', 'Scruffy Pup', 'Blossom', 'Grinning Pal'];
+  const TILE_COLORS = ['#4fa43a', '#4696e6', '#f2c230', '#f09632', '#f27aa8', '#e15a96'];
+  // what each tile kind looks like: a drawn icon or a photo sticker
+  const TILE_ART = ['leaf', 'p1', 'sunflower', 'dog', 'blossom', 'p2'];
+  const STICKER_GLOW = { p1: 'rgba(70,150,230,.75)', dog: 'rgba(240,150,50,.75)', p2: 'rgba(225,90,150,.75)' };
   const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   const sleep = U.sleep;
 
@@ -18,7 +21,16 @@ const Match3 = (() => {
       const cv = document.createElement('canvas'); cv.width = cv.height = px;
       const ctx = cv.getContext('2d'); ctx.translate(px / 2, px / 2);
       const r = px * .4;
-      DRAW[k[0] === 'c' ? 'tile' + k[1] : k](ctx, r, px);
+      if (k[0] === 'c') {
+        const art = TILE_ART[+k[1]], st = typeof Stickers !== 'undefined' && Stickers.img[art];
+        if (st && st.complete && st.naturalWidth) {
+          const g = ctx.createRadialGradient(0, 0, px * .3, 0, 0, px * .5);
+          g.addColorStop(0, STICKER_GLOW[art]); g.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, px * .5, 0, 7); ctx.fill();
+          const s = px * .86; ctx.drawImage(st, -s / 2, -s / 2, s, s);
+        }
+        else DRAW[art](ctx, r, px);
+      } else DRAW[k](ctx, r, px);
       return cv;
     },
     url(k) {
@@ -38,7 +50,7 @@ const Match3 = (() => {
     ctx.closePath();
   }
   const DRAW = {
-    tile0(ctx, r) { // monstera leaf
+    leaf(ctx, r) { // monstera leaf
       ctx.rotate(-.25); shadow(ctx, r); heartLeaf(ctx, r);
       ctx.fillStyle = rg(ctx, 0, 0, r * 1.2, ['#8fdc6a', '#4fa43a', '#246b1f']); ctx.fill(); noShadow(ctx);
       ctx.lineWidth = r * .07; ctx.strokeStyle = '#1b4d17'; ctx.stroke();
@@ -50,7 +62,7 @@ const Match3 = (() => {
       ctx.strokeStyle = '#c8f0a0'; ctx.lineWidth = r * .07; ctx.beginPath(); ctx.moveTo(0, r * .62); ctx.lineTo(0, -r * .85); ctx.stroke();
       ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(r * .3, -r * .5, r * .16, r * .08, -.7, 0, 7); ctx.fill();
     },
-    tile1(ctx, r) { // dew drop
+    drop(ctx, r) { // dew drop (spare icon)
       shadow(ctx, r); ctx.beginPath(); ctx.moveTo(0, -r * 1.02);
       ctx.bezierCurveTo(r * .3, -r * .55, r * .82, -r * .05, r * .8, r * .32);
       ctx.bezierCurveTo(r * .78, r * .78, r * .42, r * .98, 0, r * .98);
@@ -61,7 +73,7 @@ const Match3 = (() => {
       ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.beginPath(); ctx.ellipse(-r * .32, r * .15, r * .12, r * .26, .3, 0, 7); ctx.fill();
       ctx.beginPath(); ctx.arc(-r * .1, -r * .35, r * .06, 0, 7); ctx.fill();
     },
-    tile2(ctx, r) { // sunflower
+    sunflower(ctx, r) {
       shadow(ctx, r);
       for (let i = 0; i < 14; i++) {
         ctx.save(); ctx.rotate(i / 14 * Math.PI * 2); ctx.beginPath(); ctx.ellipse(0, -r * .62, r * .2, r * .4, 0, 0, 7);
@@ -73,7 +85,7 @@ const Match3 = (() => {
       ctx.fillStyle = '#d29a4a';
       for (let i = 0; i < 34; i++) { const a = i * 2.39996, d = Math.sqrt(i / 34) * r * .38; ctx.beginPath(); ctx.arc(Math.cos(a) * d, Math.sin(a) * d, r * .035, 0, 7); ctx.fill(); }
     },
-    tile3(ctx, r) { // blossom
+    blossom(ctx, r) {
       shadow(ctx, r);
       for (let i = 0; i < 5; i++) {
         ctx.save(); ctx.rotate(i / 5 * Math.PI * 2); ctx.beginPath();
@@ -85,7 +97,7 @@ const Match3 = (() => {
       ctx.beginPath(); ctx.arc(0, 0, r * .22, 0, 7); ctx.fillStyle = rg(ctx, 0, 0, r * .25, ['#fff6b0', '#f2c230', '#c88a10']); ctx.fill();
       ctx.fillStyle = '#8a5a08'; for (let i = 0; i < 7; i++) { const a = i / 7 * 6.28; ctx.beginPath(); ctx.arc(Math.cos(a) * r * .13, Math.sin(a) * r * .13, r * .03, 0, 7); ctx.fill(); }
     },
-    tile4(ctx, r) { // plum
+    plum(ctx, r) { // spare icon
       shadow(ctx, r);
       ctx.beginPath(); ctx.arc(0, r * .1, r * .78, 0, 7); ctx.fillStyle = rg(ctx, 0, r * .1, r * .9, ['#e2b8ff', '#9a55d6', '#4a1a7a']); ctx.fill(); noShadow(ctx);
       ctx.lineWidth = r * .07; ctx.strokeStyle = '#33105a'; ctx.stroke();
@@ -95,7 +107,7 @@ const Match3 = (() => {
       ctx.save(); ctx.translate(r * .1, -r * .8); ctx.rotate(.9); ctx.beginPath(); ctx.ellipse(r * .25, 0, r * .28, r * .12, 0, 0, 7);
       ctx.fillStyle = '#5bb33f'; ctx.fill(); ctx.strokeStyle = '#2a6a1a'; ctx.lineWidth = r * .04; ctx.stroke(); ctx.restore();
     },
-    tile5(ctx, r) { // acorn
+    acorn(ctx, r) { // spare icon
       shadow(ctx, r);
       ctx.beginPath(); ctx.moveTo(-r * .62, -r * .15); ctx.bezierCurveTo(-r * .66, r * .55, -r * .2, r * .95, 0, r * 1.0); ctx.bezierCurveTo(r * .2, r * .95, r * .66, r * .55, r * .62, -r * .15); ctx.closePath();
       ctx.fillStyle = rg(ctx, 0, r * .3, r * .9, ['#ffd09a', '#e08a3e', '#8a4410']); ctx.fill(); noShadow(ctx);

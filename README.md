@@ -44,5 +44,6 @@ tiles. When you finish a level, leftover moves turn into a "Bloom Bonus" of drag
 | `js/match3.js` | Board model, match detection, power-ups, combos, gravity, effects and canvas renderer |
 | `js/levels.js` | Level generator: hand-drawn board shapes, tutorial levels, scaled obstacles and goals |
 | `js/scene.js` | Glasshouse rooms, task chains and the illustrated restoration scene |
+| `js/stickers.js` | Photo stickers (cut-out heads) used as three of the matchable tile types; source PNGs in `assets/stickers/` |
 | `js/audio.js` | Synthesised sound effects and generative ambient music (Web Audio, no files) |
 | `js/main.js` | Save data, screens, tasks, choices, Herbarium and level flow |

@@ -408,7 +408,7 @@
   goHome();
   scrollSceneTo(800);
   if (!S.introSeen) {
-    setTimeout(async () => {
+    Stickers.ready.then(() => setTimeout(async () => {
       await say([
         'Oh! You must be the new keeper. Welcome to the old glasshouse. I’m Ivy, the curator.',
         'Forty years ago this was the finest collection of rare plants in the country. Now look at it: broken glass, dead pots, weeds everywhere.',
@@ -416,7 +416,7 @@
         'Let’s start with Level 1. Off you go!'
       ]);
       S.introSeen = true; save(); levelIntro();
-    }, 600);
+    }, 600));
   }
   window.__leafscapes = { S, save, get game() { return game; } };
 })();
