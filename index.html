@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1f3a24">
+<title>Leafscapes · The Glasshouse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Nunito:wght@500;700;800;900&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ═════════════ HOME: the glasshouse ═════════════ -->
+  <section id="home" class="screen active">
+    <div id="sceneWrap"><div id="scene"></div></div>
+    <header class="hud">
+      <div class="pill" id="starPill"><span class="ico star">★</span><b id="starCount">0</b></div>
+      <div class="pill" id="coinPill"><span class="ico coin">●</span><b id="coinCount">0</b></div>
+      <div class="zone-nav">
+        <button class="round sm" id="zonePrev" aria-label="Previous room">‹</button>
+        <div class="zone-title"><b id="zoneName">Monstera Corner</b><small id="zoneSub">The Old Palm House</small>
+          <div class="zone-bar"><i id="zoneProg"></i></div></div>
+        <button class="round sm" id="zoneNext" aria-label="Next room">›</button>
+      </div>
+      <button class="round" id="btnSettings" aria-label="Settings">⚙</button>
+    </header>
+    <footer class="home-bar">
+      <button class="big-btn secondary" id="btnTasks"><span class="btn-ico">✎</span><span>Tasks</span><em class="badge" id="taskBadge">1</em></button>
+      <button class="big-btn play" id="btnPlay"><small>Level</small><b id="playLevel">1</b></button>
+      <button class="big-btn secondary" id="btnHerb"><span class="btn-ico">❦</span><span>Herbarium</span><em class="badge sub" id="herbCount">0</em></button>
+    </footer>
+  </section>
+
+  <!-- ═════════════ GAME ═════════════ -->
+  <section id="game" class="screen">
+    <div class="game-bg"></div>
+    <header class="game-hud">
+      <div class="moves"><small>Moves</small><b id="movesVal">20</b></div>
+      <div class="goals" id="goals"></div>
+      <button class="round" id="btnPause" aria-label="Pause">❚❚</button>
+    </header>
+    <div id="boardWrap"><canvas id="board"></canvas></div>
+    <footer class="game-bar">
+      <div class="lvl-tag" id="lvlTag">Level 1</div>
+      <button class="booster" data-b="trowel"><span>⛏</span><small>Trowel</small><em>0</em></button>
+      <button class="booster" data-b="rake"><span>⚟</span><small>Hedge Trim</small><em>0</em></button>
+    </footer>
+    <div id="toast"></div>
+  </section>
+
+  <!-- ═════════════ OVERLAYS ═════════════ -->
+  <div id="modal" class="overlay"><div class="card" id="modalCard"></div></div>
+  <div id="sheet" class="sheet"><div class="sheet-inner" id="sheetInner"></div></div>
+  <div id="herb" class="overlay full"><div class="herb-panel">
+    <header><h2>The Herbarium</h2><p id="herbSub"></p><button class="round" id="herbClose" aria-label="Close">✕</button></header>
+    <div id="herbGrid"></div></div></div>
+  <div id="dialog" class="dialog"><div class="portrait" id="portrait"></div><div class="bubble"><b>Ivy</b><p id="dialogText"></p><small>tap to continue</small></div></div>
+  <div id="fly"></div>
+</div>
+
+<script src="js/util.js"></script>
+<script src="js/species.js"></script>
+<script src="js/plants.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/match3.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
