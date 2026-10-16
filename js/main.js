@@ -218,7 +218,12 @@
       const k = b.dataset.t; S.settings[k] = !S.settings[k]; b.classList.toggle('on', S.settings[k]);
       k === 'sound' ? Sfx.setSound(S.settings.sound) : Sfx.setMusic(S.settings.music); save();
     });
-    c.querySelector('[data-reset]').onclick = () => { if (confirm('Erase all progress and start again?')) { localStorage.removeItem(SAVE_KEY); location.reload(); } };
+    const rb = c.querySelector('[data-reset]');
+    rb.onclick = () => {
+      if (!rb.dataset.armed) { rb.dataset.armed = 1; rb.textContent = 'Tap again to erase everything'; return; }
+      try { localStorage.removeItem(SAVE_KEY); } catch (e) { }
+      location.reload();
+    };
   }
 
   /* ───────────── Levels ───────────── */
@@ -241,9 +246,9 @@
       if (!S.boosters[k]) {
         const B = BOOSTERS[k];
         if (S.coins < B.price) { b.animate([{ transform: 'translateX(-4px)' }, { transform: 'translateX(4px)' }, { transform: 'none' }], 200); Sfx.bad(); return; }
-        if (!confirm(`Buy a ${B.name} for ${B.price} coins?`)) return;
+        if (!b.dataset.armed) { b.dataset.armed = 1; b.querySelector('em').textContent = '●' + B.price; b.querySelector('small').textContent = 'Tap to buy'; return; }
         S.coins -= B.price; S.boosters[k] = 1; save(); updateHud('#coinPill'); Sfx.coin();
-        b.querySelector('em').textContent = 1;
+        b.querySelector('em').textContent = 1; b.querySelector('small').textContent = B.name;
       }
       preSel[k] = !preSel[k]; b.classList.toggle('on', preSel[k]); Sfx.tap();
     });
