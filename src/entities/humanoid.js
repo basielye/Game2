@@ -77,7 +77,7 @@ export function buildHuman(presetName, overrides = {}) {
     const thumb = ellipsoid(0.012 * s, 0.03 * s, 0.012 * s); thumb.rotateZ(S.sx * 0.5); thumb.translate(S.sx * -0.025 * s, -0.035 * s, 0.02 * s); R.rigid(thumb, S.hand, P.gloves ? col(P.gloves) : skin);
     const thighG = limb(0.43 * s, (f ? 0.082 : 0.078) * b * s, 0.05 * s, 9, 5, 0.12); R.rigid(thighG, S.thigh, pants);
     const shin = limb(0.42 * s, 0.052 * s, 0.042 * s, 8, 5, 0.15);
-    R.rigid(shin, S.knee, (p) => (p.y < 0.36 * s ? boots : pants));
+    R.rigid(shin, S.knee, (p, n, out) => out.copy(p.y < 0.36 * s ? boots : pants));
     if (P.boots) { const cuff = new THREE.CylinderGeometry(0.056 * s, 0.05 * s, 0.05 * s, 9); cuff.translate(0, -0.2 * s, 0); R.rigid(cuff, S.knee, boots); }
     const footG = ellipsoid(0.048 * s, 0.045 * s, 0.12 * s); footG.translate(0, -0.03 * s, 0.045 * s); R.rigid(footG, S.foot, boots);
     if (P.holsters && k === 'R') {

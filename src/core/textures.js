@@ -204,7 +204,7 @@ const builders = {
     const data = new Uint8Array(size * size * 4);
     const rnd = mulberry32(9);
     const blades = [];
-    for (let i = 0; i < 9; i++) blades.push({ x: 0.1 + rnd() * 0.8, w: 0.03 + rnd() * 0.03, h: 0.55 + rnd() * 0.45, bend: (rnd() - 0.5) * 0.3 });
+    for (let i = 0; i < 16; i++) blades.push({ x: 0.08 + rnd() * 0.84, w: 0.014 + rnd() * 0.018, h: 0.45 + rnd() * 0.55, bend: (rnd() - 0.5) * 0.35 });
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
       const u = x / size, v = 1 - y / size; // v=0 bottom
       let a = 0, s = 0;

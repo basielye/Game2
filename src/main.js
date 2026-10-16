@@ -589,6 +589,18 @@ class Game {
     this.structures.update(dt, performance.now() / 1000, this.camera.position, night);
     this.fx.update(dt, this.camera.position, this.storm, night);
     this.post.u.uNight.value = night;
+    // god rays toward the on-screen sun
+    const u = this.post.u;
+    if (this.settings.quality === 'high' || this.settings.quality === 'ultra') {
+      const sd = this.atmo.sunDir;
+      const sp = this._sunP || (this._sunP = new THREE.Vector3());
+      sp.copy(this.camera.position).addScaledVector(sd, 1000).project(this.camera);
+      const facing = this.camera.getWorldDirection(this._camDir2 || (this._camDir2 = new THREE.Vector3())).dot(sd);
+      const onScreen = 1 - smoothstep(0.9, 1.6, Math.max(Math.abs(sp.x), Math.abs(sp.y)));
+      u.uSun.value.set(sp.x * 0.5 + 0.5, sp.y * 0.5 + 0.5);
+      u.uRays.value = facing > 0 && sd.y > -0.02 ? onScreen * smoothstep(0, 0.5, facing) * smoothstep(-0.02, 0.12, sd.y) * (1 - this.storm) * 0.9 : 0;
+      u.uSunCol.value.copy(this.atmo.uniforms.uSunColor.value);
+    } else u.uRays.value = 0;
   }
 
   updateEntities(dt) {
@@ -636,6 +648,7 @@ class Game {
     if (dialog) I.enabled = false;
     P.update(dt, I, this.camera);
     I.enabled = true;
+    if (dialog) { this.hud.prompt(''); this.hud.progress(0); }
     if (!dialog && P.alive && this.state === 'game') {
       this.handleInteraction(dt);
       if (I.hit('KeyH')) this.population.whistle();

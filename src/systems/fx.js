@@ -10,7 +10,7 @@ uniform float uScale;
 void main(){
   vColor = aColor;
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  gl_PointSize = aSize * uScale / -mv.z;
+  gl_PointSize = aSize * 0.01 * uScale / -mv.z;
   gl_Position = projectionMatrix * mv;
 }`;
 const pFrag = /* glsl */`
@@ -98,7 +98,7 @@ export class FX {
     // ambient motes (fireflies at night / pollen at day)
     this.moteT = 0;
   }
-  setScale(h) { this.soft.uniforms.uScale.value = this.add.uniforms.uScale.value = h * 0.9; }
+  setScale(h, fov = 62) { this.soft.uniforms.uScale.value = this.add.uniforms.uScale.value = h / (2 * Math.tan((fov * Math.PI) / 360)); }
 
   _makeRain() {
     const n = 5000;

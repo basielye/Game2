@@ -58,7 +58,7 @@ export class Player extends Entity {
       (w === 'bow' ? this.rig.bones.handL : this.rig.bones.handR).add(m);
       this.weaponMeshes[w] = m;
     }
-    this.weaponMeshes.bow.rotation.set(Math.PI / 2, 0, Math.PI / 2);
+    this.weaponMeshes.bow.rotation.set(Math.PI / 2, 0, 0);
     this.weaponMeshes.bow.position.set(0, -0.07, 0);
     this.weaponMeshes.pistol.position.set(0, -0.06, 0.02);
     this.weaponMeshes.rifle.position.set(0, -0.06, 0.02);
@@ -186,7 +186,7 @@ export class Player extends Entity {
       if (input.hit('KeyF') || !m.alive) { this.dismount(); return; }
       this.mountInput.move = moving;
       if (moving) this.mountInput.yaw = Math.atan2(wish.x, wish.z);
-      this.mountInput.sprint = input.key('ShiftLeft') && this.stamina > 1;
+      this.mountInput.sprint = (input.key('ShiftLeft') || input.key('ShiftRight')) && this.stamina > 1;
       this.mountInput.jump = input.hit('Space');
       if (this.mountInput.sprint && moving) this.stamina = Math.max(0, this.stamina - dt * 8);
       else this.stamina = Math.min(this.maxStamina, this.stamina + dt * 20);
@@ -209,16 +209,17 @@ export class Player extends Entity {
     }
 
     // ---- stance ----
-    if (input.hit('KeyC') || input.hit('ControlLeft')) this.crouching = !this.crouching;
+    if (input.hit('KeyC')) this.crouching = !this.crouching;
     this.aiming = input.btn(2) && !this.swimming && this.knockT <= 0;
-    const wantSprint = input.key('ShiftLeft') && moving && !this.aiming && this.stamina > 0.5 && mz >= 0;
+    const shift = input.key('ShiftLeft') || input.key('ShiftRight');
+    const wantSprint = shift && moving && !this.aiming && this.stamina > 0.5 && mz >= 0;
     if (wantSprint && this.crouching) this.crouching = false;
     this.sprinting = wantSprint;
     if (this.sprinting) this.stamina = Math.max(0, this.stamina - dt * 14);
     else this.stamina = Math.min(this.maxStamina, this.stamina + dt * (this.swimming ? 6 : 18));
 
     let speed = this.swimming ? (this.sprinting ? 3.4 : 2.0) : this.crouching ? 1.9 : this.aiming ? 2.4 : this.sprinting ? 7.4 : 4.3;
-    if (input.key('AltLeft') && !this.sprinting) speed = 1.6;
+    if (input.key('KeyX') && !this.sprinting) speed = 1.6;
     if (this.knockT > 0) { this.knockT -= dt; speed = 0; }
     const ctrl = this.grounded || this.swimming ? 1 : 0.25;
     const tvx = wish.x * speed * (moving ? 1 : 0), tvz = wish.z * speed * (moving ? 1 : 0);
@@ -415,7 +416,7 @@ export class CameraRig {
     if (this.cinematic) return this._cinematic(realDt);
     const aiming = p.aiming && p.alive;
     const zoom = aiming && p.wdef.zoom;
-    let dist = p.mounted ? 6.2 + p.mounted.scale * (p.mounted.kindName === 'para' ? 2.5 : 1) : aiming ? (zoom ? 1.35 : 1.75) : p.swimming ? 3.2 : 3.7;
+    let dist = p.mounted ? 4.6 + p.mounted.scale * (p.mounted.kindName === 'para' ? 2.2 : 0.8) : aiming ? (zoom ? 1.35 : 1.75) : p.swimming ? 3.2 : 3.7;
     if (p.sprinting && !p.mounted) dist += 0.5;
     if (!p.alive) dist = 5;
     this.dist = damp(this.dist, dist, 8, realDt);
@@ -440,7 +441,7 @@ export class CameraRig {
     d = Math.max(0.6, d);
     const camPos = shoulderPt.addScaledVector(back, d);
     const gh = this.game.terrain.getHeight(camPos.x, camPos.z);
-    if (camPos.y < gh + 0.35) camPos.y = gh + 0.35;
+    if (camPos.y < gh + 0.6) camPos.y = gh + 0.6;
     if (camPos.y < -1.0 && !p.swimming) camPos.y = Math.max(camPos.y, 0.3);
     this.pos.copy(camPos);
     this.cam.position.copy(camPos);

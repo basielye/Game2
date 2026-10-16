@@ -67,8 +67,8 @@ void main(){
 
 // Key colours across the sun's elevation (−1..1 sin of elevation)
 const KEYS = [
-  { e: -0.35, zen: [0.004, 0.008, 0.02], hor: [0.02, 0.03, 0.055], sun: [0, 0, 0], light: [0.18, 0.24, 0.42], li: 0.18, amb: 0.22, fog: [0.02, 0.03, 0.055] },
-  { e: -0.08, zen: [0.02, 0.03, 0.09], hor: [0.18, 0.12, 0.16], sun: [0.4, 0.15, 0.05], light: [0.3, 0.3, 0.5], li: 0.2, amb: 0.3, fog: [0.14, 0.11, 0.15] },
+  { e: -0.35, zen: [0.006, 0.012, 0.03], hor: [0.03, 0.045, 0.075], sun: [0, 0, 0], light: [0.45, 0.55, 0.85], li: 0.18, amb: 0.5, fog: [0.035, 0.05, 0.08] },
+  { e: -0.08, zen: [0.02, 0.03, 0.09], hor: [0.18, 0.12, 0.16], sun: [0.4, 0.15, 0.05], light: [0.45, 0.45, 0.7], li: 0.2, amb: 0.45, fog: [0.14, 0.11, 0.15] },
   { e: 0.02, zen: [0.12, 0.17, 0.33], hor: [0.95, 0.48, 0.22], sun: [1.0, 0.45, 0.15], light: [1.0, 0.5, 0.25], li: 1.2, amb: 0.45, fog: [0.72, 0.45, 0.32] },
   { e: 0.15, zen: [0.18, 0.33, 0.62], hor: [0.85, 0.7, 0.55], sun: [1.0, 0.75, 0.45], light: [1.0, 0.8, 0.6], li: 2.4, amb: 0.6, fog: [0.7, 0.66, 0.6] },
   { e: 0.45, zen: [0.17, 0.38, 0.75], hor: [0.62, 0.75, 0.86], sun: [1.0, 0.93, 0.8], light: [1.0, 0.95, 0.86], li: 3.2, amb: 0.75, fog: [0.62, 0.72, 0.8] },
@@ -173,7 +173,7 @@ export class Atmosphere {
     const useMoon = e < -0.02;
     const ldir = useMoon ? this.moonDir : this.sunDir;
     this.sun.color.setRGB(...k.light);
-    this.sun.intensity = (useMoon ? 0.35 : k.li) * (1 - storm * 0.75);
+    this.sun.intensity = (useMoon ? 0.75 : k.li) * (1 - storm * 0.75);
     const center = focus;
     this.sun.position.set(center.x + ldir.x * 400, center.y + Math.max(0.15, ldir.y) * 400, center.z + ldir.z * 400);
     // snap shadow camera to texel grid to avoid shimmering
@@ -184,7 +184,8 @@ export class Atmosphere {
     this.sun.target.updateMatrixWorld();
 
     this.hemi.intensity = k.amb * (1 - storm * 0.3);
-    this.hemi.color.setRGB(k.zen[0] * 2 + 0.2, k.zen[1] * 2 + 0.2, k.zen[2] * 2 + 0.2);
+    const nb = smoothstep(0.05, -0.2, e);
+    this.hemi.color.setRGB(k.zen[0] * 2 + 0.2 + nb * 0.1, k.zen[1] * 2 + 0.2 + nb * 0.2, k.zen[2] * 2 + 0.2 + nb * 0.45);
     this.hemi.groundColor.setRGB(0.22 * k.amb, 0.19 * k.amb, 0.12 * k.amb);
 
     const fog = desat(k.fog, storm * 0.6);

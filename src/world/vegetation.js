@@ -371,8 +371,8 @@ class Grass {
     this.cap = 60000;
     const blades = [];
     for (let i = 0; i < 3; i++) {
-      const g = new THREE.PlaneGeometry(1.1, 0.75, 1, 2);
-      g.translate(0, 0.375, 0);
+      const g = new THREE.PlaneGeometry(0.7, 0.5, 1, 2);
+      g.translate(0, 0.25, 0);
       g.rotateY((i / 3) * Math.PI);
       // normals point up for soft lighting
       const na = g.attributes.normal;
@@ -390,7 +390,7 @@ class Grass {
         .replace('#include <begin_vertex>', `#include <begin_vertex>
           vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
           float hh = position.y;
-          vGy = hh / 0.75;
+          vGy = hh / 0.5;
           float ph = uTime * 2.0 + ip.x * 0.15 + ip.z * 0.11;
           float w = (sin(ph) * 0.5 + sin(ph * 2.7) * 0.2 + 0.25) * hh * 0.45 * uWind;
           transformed.x += w; transformed.z += w * 0.5;
@@ -415,7 +415,7 @@ class Grass {
     grassPlayer.value.copy(playerPosRef);
     if (camPos.distanceToSquared(this.last) < 16) return;
     this.last.copy(camPos);
-    const T = this.terrain, R = this.radius, sp = 1.25 / Math.sqrt(this.density);
+    const T = this.terrain, R = this.radius, sp = 0.85 / Math.sqrt(this.density);
     const arr = this.mesh.instanceMatrix.array, col = this.mesh.instanceColor.array;
     let n = 0;
     const x0 = Math.floor((camPos.x - R) / sp), x1 = Math.floor((camPos.x + R) / sp);
@@ -438,12 +438,12 @@ class Grass {
       const nrm = T.getNormal(x, z, _v);
       if (nrm.y < 0.8) continue;
       const fade = 1 - smoothstep(R * 0.7, R, d);
-      const s = (0.6 + r3 * 0.9) * (0.25 + 0.75 * fade);
+      const s = (0.65 + r3 * 0.6) * (0.25 + 0.75 * fade);
       const rot = r1 * 6.28;
       const c = Math.cos(rot) * s, sn = Math.sin(rot) * s;
       const i = n * 16;
       arr[i] = c; arr[i + 1] = 0; arr[i + 2] = -sn; arr[i + 3] = 0;
-      arr[i + 4] = 0; arr[i + 5] = s * (0.8 + r2 * 0.6); arr[i + 6] = 0; arr[i + 7] = 0;
+      arr[i + 4] = 0; arr[i + 5] = s * (0.7 + r2 * 0.6); arr[i + 6] = 0; arr[i + 7] = 0;
       arr[i + 8] = sn; arr[i + 9] = 0; arr[i + 10] = c; arr[i + 11] = 0;
       arr[i + 12] = x; arr[i + 13] = y - 0.05; arr[i + 14] = z; arr[i + 15] = 1;
       const m = noise.noise2(x * 0.012, z * 0.012) * 0.5 + 0.5;

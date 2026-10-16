@@ -13,7 +13,7 @@ export class Input {
     addEventListener('keydown', (e) => {
       if (e.repeat) return;
       if (['Tab', 'Space', 'ArrowUp', 'ArrowDown'].includes(e.code) && this.locked) e.preventDefault();
-      if (e.code === 'Tab') e.preventDefault();
+      if (e.code === 'Tab' || e.code === 'AltLeft' || e.code === 'AltRight' || (this.locked && (e.code === 'KeyS' || e.code === 'KeyF') && e.ctrlKey)) e.preventDefault();
       this.down.add(e.code); this.pressed.add(e.code);
     });
     addEventListener('keyup', (e) => { this.down.delete(e.code); this.released.add(e.code); });

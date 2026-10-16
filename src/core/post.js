@@ -11,10 +11,11 @@ const GradeShader = {
     tDiffuse: { value: null }, uTime: { value: 0 }, uDeadEye: { value: 0 }, uDamage: { value: 0 },
     uVignette: { value: 0.32 }, uSat: { value: 1.08 }, uContrast: { value: 1.06 }, uWarm: { value: 0.02 }, uGrain: { value: 0.035 }, uRes: { value: new THREE.Vector2(1, 1) },
     uFade: { value: 0 }, uNight: { value: 0 },
+    uSun: { value: new THREE.Vector2(0.5, 0.5) }, uRays: { value: 0 }, uSunCol: { value: new THREE.Color(1, 0.9, 0.7) },
   },
   vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
   fragmentShader: /* glsl */`
-    uniform sampler2D tDiffuse; uniform float uTime, uDeadEye, uDamage, uVignette, uSat, uContrast, uWarm, uGrain, uFade, uNight; uniform vec2 uRes;
+    uniform sampler2D tDiffuse; uniform float uTime, uDeadEye, uDamage, uVignette, uSat, uContrast, uWarm, uGrain, uFade, uNight, uRays; uniform vec2 uRes, uSun; uniform vec3 uSunCol;
     varying vec2 vUv;
     float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }
     void main(){
@@ -26,7 +27,23 @@ const GradeShader = {
       col.r = texture2D(tDiffuse, uv + dc * ca).r;
       col.g = texture2D(tDiffuse, uv).g;
       col.b = texture2D(tDiffuse, uv - dc * ca).b;
+      // volumetric light shafts: march toward the sun, gathering bright sky pixels
+      if (uRays > 0.01) {
+        vec2 delta = (uSun - uv) / 28.0;
+        vec2 p = uv + delta * h(uv * uRes + uTime) ;
+        float illum = 0.0, decay = 1.0;
+        for (int i = 0; i < 28; i++) {
+          p += delta;
+          vec3 s = texture2D(tDiffuse, clamp(p, 0.0, 1.0)).rgb;
+          float b = max(0.0, dot(s, vec3(0.333)) - 0.72) * 3.5;
+          illum += b * decay;
+          decay *= 0.94;
+        }
+        col += uSunCol * illum * (uRays / 28.0) * 0.9;
+      }
       float l = dot(col, vec3(0.299, 0.587, 0.114));
+      // split toning: teal shadows, warm highlights
+      col = mix(col * vec3(0.93, 1.0, 1.06), col * vec3(1.06, 1.0, 0.92), smoothstep(0.15, 0.85, l));
       col = mix(vec3(l), col, uSat);
       col = (col - 0.5) * uContrast + 0.5;
       col += vec3(uWarm, uWarm * 0.4, -uWarm);

@@ -154,7 +154,8 @@ button:disabled { opacity: .35; cursor: default; }
 #dialog.radio .dtext { font-style: italic; color: #b8d8c8; letter-spacing: .5px; }
 #dialog .dmore { font-size: 12px; color: var(--ink-dim); margin-top: 6px; animation: pulse .8s infinite alternate; }
 #death { background: radial-gradient(ellipse, rgba(60,0,0,.45), rgba(0,0,0,.92)); flex-direction: column; align-items: center; justify-content: center; }
-#death .dd1 { font-family: var(--display); font-size: 92px; color: var(--blood); text-shadow: 0 0 40px rgba(180,20,0,.6); animation: itext 99s; opacity: 1; }
+#death .dd1 { font-family: var(--display); font-size: 92px; color: var(--blood); text-shadow: 0 0 40px rgba(180,20,0,.6); animation: deathin 2.2s ease both; }
+@keyframes deathin { from { opacity: 0; transform: scale(1.25); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
 #death .dd2 { font-size: 22px; font-style: italic; color: var(--ink-dim); margin: 10px 0 40px; }
 #ending { background: #000; align-items: center; justify-content: center; }
 #ending .etext { max-width: 820px; text-align: center; font-size: 30px; line-height: 1.5; opacity: 0; padding: 0 30px; }

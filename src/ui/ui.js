@@ -251,7 +251,7 @@ export class UI {
   }
 
   controlsHTML() {
-    const rows = [['W A S D', 'Move'], ['Shift', 'Sprint / gallop'], ['C / Ctrl', 'Crouch (stealth)'], ['Space', 'Jump'], ['Right Mouse', 'Aim'], ['Left Mouse', 'Fire / draw bow / swing'], ['Q (while aiming)', 'Dead Eye — mark targets, click to unleash'], ['R', 'Reload'], ['1 – 4 / Wheel', 'Switch weapon'], ['T', 'Toggle venom arrows'], ['E', 'Interact / gather / talk / loot (hold to tame)'], ['F', 'Mount / dismount'], ['H', 'Whistle for your mount'], ['G', 'Eat food'], ['B', 'Use bandage'], ['Alt', 'Walk'], ['Tab', 'Satchel & crafting'], ['M', 'Map'], ['J', 'Journal'], ['Esc', 'Pause']];
+    const rows = [['W A S D', 'Move'], ['Shift', 'Sprint / gallop'], ['C', 'Crouch (stealth)'], ['Space', 'Jump'], ['Right Mouse', 'Aim'], ['Left Mouse', 'Fire / draw bow / swing'], ['Q (while aiming)', 'Dead Eye — mark targets, click to unleash'], ['R', 'Reload'], ['1 – 4 / Wheel', 'Switch weapon'], ['T', 'Toggle venom arrows'], ['E', 'Interact / gather / talk / loot (hold to tame)'], ['F', 'Mount / dismount'], ['H', 'Whistle for your mount'], ['G', 'Eat food'], ['B', 'Use bandage'], ['X (hold)', 'Walk slowly'], ['Tab', 'Satchel & crafting'], ['M', 'Map'], ['J', 'Journal'], ['Esc', 'Pause']];
     return `<div class="controls"><h3>Controls</h3>${rows.map(([k, v]) => `<div class="cr"><kbd>${k}</kbd><span>${v}</span></div>`).join('')}</div>`;
   }
   creditsHTML() {

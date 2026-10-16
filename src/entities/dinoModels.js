@@ -92,7 +92,7 @@ export const SPECIES = {
 let skinMat = null;
 function dinoMaterial() {
   if (!skinMat) {
-    skinMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.0, normalMap: getTex('scales'), normalScale: new THREE.Vector2(0.9, 0.9) });
+    skinMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.0, normalMap: getTex('scales'), normalScale: new THREE.Vector2(0.55, 0.55) });
   }
   return skinMat;
 }
@@ -287,6 +287,9 @@ export function buildDino(kind, scale = 1, tint = 0) {
       const muscle = ellipsoid(L.r * 1.25 * sc, L.thigh * 0.55 * sc, L.r * 1.35 * sc); muscle.translate(0, -L.thigh * 0.3 * sc, 0);
       R.rigid(muscle, lg.hip, legColor);
     }
+    // joint caps hide gaps when knees/ankles flex
+    R.rigid(ellipsoid(L.r * 0.66 * sc, L.r * 0.66 * sc, L.r * 0.66 * sc, 8, 6), lg.knee, legColor);
+    R.rigid(ellipsoid(L.r * 0.44 * sc, L.r * 0.44 * sc, L.r * 0.44 * sc, 8, 6), lg.ankle, legColor);
     R.rigid(limb(L.shin * sc, L.r * 0.62 * sc, L.r * 0.42 * sc, 8, 4), lg.knee, legColor);
     R.rigid(limb(L.meta * sc, L.r * 0.4 * sc, L.r * 0.34 * sc, 7, 3), lg.ankle, legColor);
     if (L.foot === 'claw') {
