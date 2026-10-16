@@ -89,13 +89,14 @@ const Cottage = (() => {
   }
 
   /* ───────────── main loop ───────────── */
-  let saveTimer = 0, slowTimer = 0;
+  let saveTimer = 0, slowTimer = 0, fxDt = 0;
   function loop(now) {
     if (!running) return;
     const dt = Math.min(.1, (now - last) / 1000); last = now;
     const sp = ui.mode === 'live' && !g.casOpen ? SPEEDS[g.speed] : 0;
     if (sp) step(dt * sp);
     else g.sims.forEach(s => { if (s.anim === 'walk') s.anim = 'stand'; });
+    fxDt = sp ? dt : 0; Choreo.update(dt);
     draw(now / 1000);
     slowTimer += dt; saveTimer += dt;
     if (slowTimer > .25) { slowTimer = 0; renderHud(); renderPanel(); renderQueue(); }
@@ -139,6 +140,10 @@ const Cottage = (() => {
     if (ui.mode !== 'live') drawGrid();
     if (ui.mode !== 'build' && !ui.ghost && ui.hover && ui.hover.obj && !World.defOf(ui.hover.obj).fixed || (ui.sel && ui.mode === 'buy')) highlightObj(ui.sel && ui.mode === 'buy' ? ui.sel : ui.hover.obj);
     const sel = g.simById(g.sel);
+    // who is using which object right now, and what they are doing with it
+    const using = {};
+    for (const s of g.sims) { s._beat = s.atWork ? null : Choreo.beat(s, t); if (!s.atWork && s.cur && s.cur.kind === 'obj' && s.cur.state === 'do') using[s.cur.o] = { sim: s, beat: s._beat }; }
+    const objFx = o => { const fr = World.frameOf(o); Choreo.objectFx(ctx, o, using[o.uid], t, (u, v, z) => Iso.P(...fr.toW(u, v), z)); };
     const extras = g.sims.filter(s => !s.atWork).map(s => {
       let k = s.x + s.y, z = 0;
       if (s.cur && s.cur.kind === 'obj' && (s.cur.state === 'do' || s.anim === 'walk') && s.cur.spot && s.cur.spot.approach) {
@@ -148,7 +153,8 @@ const Cottage = (() => {
       }
       return { k, o: 2, f: () => drawSimAt(s, t, z, s === sel) };
     });
-    World.drawScene(ctx, g.L, g.rooms, { walls: g.walls, night: nt, hidden: ui.moving, isDoorOpen: (kind, x, y) => g.sims.some(s => !s.atWork && Math.hypot(s.x - (kind === 'h' ? x + .5 : x), s.y - (kind === 'h' ? y : y + .5)) < .9) }, extras);
+    World.drawScene(ctx, g.L, g.rooms, { walls: g.walls, night: nt, hidden: ui.moving, objFx, isDoorOpen: (kind, x, y) => g.sims.some(s => !s.atWork && Math.hypot(s.x - (kind === 'h' ? x + .5 : x), s.y - (kind === 'h' ? y : y + .5)) < .9) }, extras);
+    Choreo.draw(ctx);
     if (ui.ghost) drawGhost();
     if (ui.drag && ui.drag.tool) drawToolPreview();
     // night lighting
@@ -177,9 +183,15 @@ const Cottage = (() => {
   }
   function drawSimAt(s, t, z, isSel) {
     const [sx, sy] = Iso.P(s.x, s.y, z);
-    const fx = s.face[0], fy = s.face[1], front = fx + fy >= -.01, flip = (fx - fy) < 0;
+    const fx = s.face[0], fy = s.face[1], front = fx + fy >= -.01, b = s._beat;
+    let flip = (fx - fy) < 0;
+    if (b && b.lookFlip) flip = !flip;
+    const PZ = b && b.pose ? Choreo.POSES[b.pose] : null;
+    const anim = !PZ ? s.anim : PZ.base === 'kneel' ? 'garden' : PZ.base === 'sit' ? 'sit' : ['sit', 'type', 'shower', 'dance', 'walk', 'run', 'sleep', 'bath', 'faint'].includes(s.anim) ? s.anim : 'stand';
     if (isSel && ui.mode === 'live') { ctx.strokeStyle = 'rgba(120,255,140,.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(sx, sy - (z ? 0 : 0), 15, 7, 0, 0, 7); ctx.stroke(); }
-    Simfolk.drawSim(ctx, s, sx, sy, 1, t, { anim: s.anim, front: s.anim === 'sleep' ? true : front, flip, mood: Simfolk.mood(s) });
+    Simfolk.drawSim(ctx, s, sx, sy, 1, t, { anim, pose: PZ ? b.pose : null, p: b && b.p, front: s.anim === 'sleep' ? true : front, flip, mood: Simfolk.mood(s) });
+    if (b && fxDt) Choreo.emit(s, b, sx, sy, flip ? -1 : 1, fxDt, t);
+    else if (fxDt && (s.anim === 'run' || s.anim === 'bath')) Choreo.emit(s, {}, sx, sy, flip ? -1 : 1, fxDt, t);
   }
   function drawGrid() {
     ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 1; ctx.beginPath();

@@ -131,6 +131,8 @@ const Simfolk = (() => {
     const sit = ['sit', 'type'].includes(anim), kneel = anim === 'garden';
     let bob = walking ? Math.abs(Math.sin(ph)) * -1.5 : 0;
     if (anim === 'dance') bob = Math.sin(t * 9) * 2.5 - 1.5;
+    const PZ = opt.pose && typeof Choreo !== 'undefined' ? Choreo.POSES[opt.pose] : null, pp = opt.p || 0;
+    if (PZ && PZ.bob) bob += PZ.bob(t);
     const drop = sit ? 7 : kneel ? 12 : 0, hunch = elder ? 2 : 0;
     ctx.translate(0, bob + drop);
     const pants = s.top === 'overalls' ? s.bottomColor : s.bottomColor, skin = s.skin;
@@ -197,7 +199,7 @@ const Simfolk = (() => {
       if (sleeves === 'short') { rr(-2.9, -1, 5.8, 8.5, 2.6, sleeveCol); if (s.pattern === 'stripes') { ctx.fillStyle = c2; ctx.fillRect(-2.9, 2, 5.8, 1.6); ctx.fillRect(-2.9, 6, 5.8, 1.4); } }
       if (sleeves === 'long') { if (s.pattern === 'stripes') { ctx.fillStyle = c2; for (let y = 2; y < len - 2; y += 5) ctx.fillRect(-2.6, y, 5.2, 1.8); } ctx.fillStyle = U.shade(sleeveCol, -.15); ctx.fillRect(-2.6, len - 3.5, 5.2, 1.5); }
       ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(0, len, 2.9, 0, 7); ctx.fill();
-      if (hold) hold(len);
+      if (hold) hold(len, ang);
       ctx.restore();
     };
     const sw = walking ? Math.sin(ph) * .5 : 0;
@@ -209,7 +211,13 @@ const Simfolk = (() => {
       paint: l => { ctx.fillStyle = '#c9a54a'; ctx.fillRect(-.7, l - 10, 1.4, 12); ctx.fillStyle = '#c94a4a'; ctx.fillRect(-1, l - 12, 2, 3); },
       garden: l => { ctx.fillStyle = '#8a8a8a'; ctx.fillRect(-1, l, 2, 7); }
     };
-    if (anim === 'dance') { arm(-1, Math.PI + .5 + Math.sin(t * 8) * .4, 21); arm(1, -Math.PI - .5 - Math.sin(t * 8 + 1) * .4, 21); }
+    if (PZ) {
+      const a = PZ.arms(t, pp);
+      // props are in front of the body, so they are hidden when the Sim faces away
+      arm(-1, a[0], a[2] || 21, front && PZ.holdL && ((l, g) => PZ.holdL(ctx, l, g, t, pp, s)));
+      arm(1, a[1], a[3] || 21, front && PZ.holdR && ((l, g) => PZ.holdR(ctx, l, g, t, pp, s)));
+    }
+    else if (anim === 'dance') { arm(-1, Math.PI + .5 + Math.sin(t * 8) * .4, 21); arm(1, -Math.PI - .5 - Math.sin(t * 8 + 1) * .4, 21); }
     else if (anim === 'talk') { arm(-1, .1, 22); arm(1, -.5 - Math.abs(Math.sin(t * 5)) * .9, 20); }
     else if (['cook', 'type', 'read', 'water'].includes(anim)) { arm(-1, -.5, 18, anim === 'type' ? null : holdItem[anim]); arm(1, .5, 18); }
     else if (anim === 'eat') { arm(-1, .15, 22); arm(1, -.9 - Math.max(0, Math.sin(t * 3)) * 1.4, 17, holdItem.eat); }
@@ -224,17 +232,29 @@ const Simfolk = (() => {
     if (['long', 'ponytail', 'curly'].includes(s.hair) && !back) drawHairBack(ctx, s.hair, hc, hy);
     ctx.fillStyle = skin; ctx.beginPath(); ctx.ellipse(0, hy, 9.5, 10.5, 0, 0, 7); ctx.fill();
     ctx.beginPath(); ctx.arc(-9.3, hy + 1, 2.4, 0, 7); ctx.arc(9.3, hy + 1, 2.4, 0, 7); ctx.fill();
-    if (!back) drawFace(ctx, s, hy, t, opt.mood == null ? 60 : opt.mood, anim);
+    if (!back) drawFace(ctx, s, hy, t, opt.mood == null ? 60 : opt.mood, anim, PZ && PZ.face ? (typeof PZ.face === 'function' ? PZ.face(t) : PZ.face) : null);
     drawHair(ctx, s.hair, hc, hy, back);
     ctx.restore();
   }
-  function drawFace(ctx, s, hy, t, m, anim) {
+  function drawFace(ctx, s, hy, t, m, anim, ex) {
     const blink = (Math.floor(t * 10 + s.id.length * 7) % 47) === 0 || anim === 'sleep';
     ctx.fillStyle = '#2a1d14';
+    if (ex) { drawExpression(ctx, s, hy, t, ex); return; }
     if (blink) { ctx.fillRect(-5, hy - 1, 3, 1.2); ctx.fillRect(2, hy - 1, 3, 1.2); }
     else { ctx.beginPath(); ctx.ellipse(-3.6, hy - .8, 1.4, 1.8, 0, 0, 7); ctx.ellipse(3.6, hy - .8, 1.4, 1.8, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(-3.4, hy - 1.8, .8, .8); ctx.fillRect(3.8, hy - 1.8, .8, .8); }
     ctx.strokeStyle = U.shade(s.hairColor, .1); ctx.lineWidth = 1.1; ctx.beginPath(); ctx.moveTo(-5.5, hy - 4.4 - (m < 30 ? -.8 : 0)); ctx.lineTo(-2, hy - 4.8); ctx.moveTo(5.5, hy - 4.4 - (m < 30 ? -.8 : 0)); ctx.lineTo(2, hy - 4.8); ctx.stroke();
-    if (s.beard) {
+    drawBeard(ctx, s, hy);
+    ctx.strokeStyle = '#8a3a2a'; ctx.lineWidth = 1.2; ctx.beginPath();
+    if (anim === 'talk' || anim === 'eat') { ctx.fillStyle = '#7a2a22'; ctx.ellipse(0, hy + 5, 2, 1 + Math.abs(Math.sin(t * 9)) * 1.6, 0, 0, 7); ctx.fill(); }
+    else if (m > 55) { ctx.arc(0, hy + 3, 3.2, .3, Math.PI - .3); ctx.stroke(); }
+    else if (m > 32) { ctx.moveTo(-2.5, hy + 5); ctx.lineTo(2.5, hy + 5); ctx.stroke(); }
+    else { ctx.arc(0, hy + 7.5, 3, Math.PI + .5, -.5); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(230,110,110,.25)'; ctx.beginPath(); ctx.arc(-5.5, hy + 2.5, 2, 0, 7); ctx.arc(5.5, hy + 2.5, 2, 0, 7); ctx.fill();
+    if (s.age === 'elder') { ctx.strokeStyle = 'rgba(90,60,40,.4)'; ctx.lineWidth = .7; ctx.beginPath(); ctx.moveTo(-7, hy + 1); ctx.lineTo(-6, hy + 2.5); ctx.moveTo(7, hy + 1); ctx.lineTo(6, hy + 2.5); ctx.stroke(); ctx.strokeStyle = '#6a4a2a'; ctx.lineWidth = .9; ctx.beginPath(); ctx.arc(-3.6, hy - .8, 2.6, 0, 7); ctx.moveTo(6.2, hy - .8); ctx.arc(3.6, hy - .8, 2.6, 0, 7); ctx.stroke(); }
+  }
+  function drawBeard(ctx, s, hy) {
+    if (!s.beard) return;
+    {
       const bc = U.shade(s.hairColor, -.15);
       ctx.save(); ctx.globalAlpha = s.beard === 'stubble' ? .38 : .95; ctx.fillStyle = bc;
       ctx.beginPath(); ctx.moveTo(-9.6, hy); ctx.quadraticCurveTo(-9.4, hy + 11, 0, hy + 12.8); ctx.quadraticCurveTo(9.4, hy + 11, 9.6, hy);
@@ -243,13 +263,32 @@ const Simfolk = (() => {
       else for (let i = 0; i < 14; i++) { ctx.fillRect(-6 + (i * 37 % 12), hy + 3 + (i * 13 % 5), .9, .9); }
       ctx.restore();
     }
-    ctx.strokeStyle = '#8a3a2a'; ctx.lineWidth = 1.2; ctx.beginPath();
-    if (anim === 'talk' || anim === 'eat') { ctx.fillStyle = '#7a2a22'; ctx.ellipse(0, hy + 5, 2, 1 + Math.abs(Math.sin(t * 9)) * 1.6, 0, 0, 7); ctx.fill(); }
-    else if (m > 55) { ctx.arc(0, hy + 3, 3.2, .3, Math.PI - .3); ctx.stroke(); }
-    else if (m > 32) { ctx.moveTo(-2.5, hy + 5); ctx.lineTo(2.5, hy + 5); ctx.stroke(); }
-    else { ctx.arc(0, hy + 7.5, 3, Math.PI + .5, -.5); ctx.stroke(); }
-    ctx.fillStyle = 'rgba(230,110,110,.25)'; ctx.beginPath(); ctx.arc(-5.5, hy + 2.5, 2, 0, 7); ctx.arc(5.5, hy + 2.5, 2, 0, 7); ctx.fill();
-    if (s.age === 'elder') { ctx.strokeStyle = 'rgba(90,60,40,.4)'; ctx.lineWidth = .7; ctx.beginPath(); ctx.moveTo(-7, hy + 1); ctx.lineTo(-6, hy + 2.5); ctx.moveTo(7, hy + 1); ctx.lineTo(6, hy + 2.5); ctx.stroke(); ctx.strokeStyle = '#6a4a2a'; ctx.lineWidth = .9; ctx.beginPath(); ctx.arc(-3.6, hy - .8, 2.6, 0, 7); ctx.moveTo(6.2, hy - .8); ctx.arc(3.6, hy - .8, 2.6, 0, 7); ctx.stroke(); }
+  }
+  /* Expressive faces for choreographed beats. */
+  function drawExpression(ctx, s, hy, t, ex) {
+    const ink = '#2a1d14', lip = '#8a3a2a', mouthIn = '#7a2a22';
+    drawBeard(ctx, s, hy);
+    const happyEyes = () => { ctx.strokeStyle = ink; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(-3.6, hy, 1.8, Math.PI + .3, -.3); ctx.moveTo(5.4, hy - .5); ctx.arc(3.6, hy, 1.8, Math.PI + .3, -.3); ctx.stroke(); };
+    const dotEyes = (dy = 0, dx = 0, h = 1.8) => { ctx.fillStyle = ink; ctx.beginPath(); ctx.ellipse(-3.6 + dx, hy - .8 + dy, 1.4, h, 0, 0, 7); ctx.ellipse(3.6 + dx, hy - .8 + dy, 1.4, h, 0, 0, 7); ctx.fill(); if (h > 1) { ctx.fillStyle = '#fff'; ctx.fillRect(-3.4 + dx, hy - 1.8 + dy, .8, .8); ctx.fillRect(3.8 + dx, hy - 1.8 + dy, .8, .8); } };
+    const brows = (l, r, tilt = 0) => { ctx.strokeStyle = U.shade(s.hairColor, .1); ctx.lineWidth = 1.1; ctx.beginPath(); ctx.moveTo(-5.5, hy - 4.4 + l + tilt); ctx.lineTo(-2, hy - 4.8 + l - tilt); ctx.moveTo(5.5, hy - 4.4 + r + tilt); ctx.lineTo(2, hy - 4.8 + r - tilt); ctx.stroke(); };
+    const openMouth = (w, h, y = 5) => { ctx.fillStyle = mouthIn; ctx.beginPath(); ctx.ellipse(0, hy + y, w, h, 0, 0, 7); ctx.fill(); if (h > 1.6) { ctx.fillStyle = '#e86a6a'; ctx.beginPath(); ctx.ellipse(0, hy + y + h * .5, w * .6, h * .35, 0, 0, 7); ctx.fill(); } };
+    const smile = (r = 3.2, y = 3) => { ctx.strokeStyle = lip; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(0, hy + y, r, .3, Math.PI - .3); ctx.stroke(); };
+    switch (ex) {
+      case 'laugh': happyEyes(); brows(-1, -1); ctx.fillStyle = mouthIn; ctx.beginPath(); ctx.arc(0, hy + 3.5, 3.6 + Math.abs(Math.sin(t * 14)) * .6, 0, Math.PI); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(-2.6, hy + 3.5, 5.2, 1); break;
+      case 'yum': happyEyes(); brows(-.6, -.6); smile(3.4, 2.6); ctx.fillStyle = '#e86a6a'; ctx.beginPath(); ctx.ellipse(1.6, hy + 6.2, 1.4, 1.1, 0, 0, 7); ctx.fill(); break;
+      case 'chew': { dotEyes(0, 0, 1.2 + Math.abs(Math.sin(t * 3)) * .6); brows(0, 0); const k = Math.abs(Math.sin(t * 12)); ctx.fillStyle = s.skin; ctx.beginPath(); ctx.ellipse(-6, hy + 3.5, 2.6 + k * .8, 2.2, 0, 0, 7); ctx.fill(); ctx.strokeStyle = lip; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-2.2, hy + 5 + k * .6); ctx.quadraticCurveTo(0, hy + 6 - k, 2.2, hy + 5 + k * .6); ctx.stroke(); break; }
+      case 'sing': happyEyes(); brows(-1.2, -1.2); openMouth(1.8, 1.8 + Math.abs(Math.sin(t * 5)) * 1.2); break;
+      case 'talk': dotEyes(); brows(-.5, -.5); openMouth(2, .8 + Math.abs(Math.sin(t * 9)) * 1.6); break;
+      case 'focus': dotEyes(1, 0, 1.3); brows(1.4, 1.4, -.8); ctx.strokeStyle = lip; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-2, hy + 5); ctx.lineTo(2, hy + 5); ctx.stroke(); ctx.fillStyle = '#e86a6a'; ctx.beginPath(); ctx.ellipse(2.4, hy + 5.6, 1, .8, 0, 0, 7); ctx.fill(); break;
+      case 'yawn': ctx.strokeStyle = ink; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-5, hy - .5); ctx.lineTo(-2.2, hy); ctx.moveTo(5, hy - .5); ctx.lineTo(2.2, hy); ctx.stroke(); brows(-1.5, -1.5); openMouth(2.6, 3.2, 5.5); break;
+      case 'angry': dotEyes(.6); ctx.strokeStyle = U.shade(s.hairColor, .1); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-5.5, hy - 5.4); ctx.lineTo(-1.5, hy - 3.2); ctx.moveTo(5.5, hy - 5.4); ctx.lineTo(1.5, hy - 3.2); ctx.stroke(); openMouth(2.4, 1 + Math.abs(Math.sin(t * 10)) * 1.2, 6); ctx.fillStyle = 'rgba(230,80,80,.3)'; ctx.beginPath(); ctx.arc(-5.5, hy + 2.5, 2.4, 0, 7); ctx.arc(5.5, hy + 2.5, 2.4, 0, 7); ctx.fill(); return;
+      case 'curious': dotEyes(-.3, Math.sin(t * .7) * .8, 2); brows(-1.6, -.4); ctx.strokeStyle = lip; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(.5, hy + 4.2, 2.2, .4, Math.PI - .6); ctx.stroke(); break;
+      case 'proud': happyEyes(); brows(-1, -1); smile(3.8, 2.4); ctx.fillStyle = '#fff'; ctx.fillRect(-2.6, hy + 4.6, 5.2, .9); break;
+      case 'idea': dotEyes(-.6, 0, 2.2); brows(-2, -2); openMouth(1.4, 1.4); ctx.fillStyle = '#ffe27a'; ctx.beginPath(); ctx.arc(9, hy - 16, 3, 0, 7); ctx.fill(); ctx.fillStyle = '#b9b9b9'; ctx.fillRect(7.8, hy - 13.4, 2.4, 1.8); break;
+      case 'bored': ctx.fillStyle = ink; ctx.fillRect(-5, hy - 1.2, 3, 1.4); ctx.fillRect(2, hy - 1.2, 3, 1.4); ctx.beginPath(); ctx.ellipse(-3.6, hy - .2, 1.3, .9, 0, 0, Math.PI); ctx.ellipse(3.6, hy - .2, 1.3, .9, 0, 0, Math.PI); ctx.fill(); brows(.6, .6); ctx.strokeStyle = lip; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-2.4, hy + 5.4); ctx.lineTo(2.4, hy + 4.8); ctx.stroke(); break;
+      default: dotEyes(); brows(0, 0); smile();
+    }
+    ctx.fillStyle = 'rgba(230,110,110,.3)'; ctx.beginPath(); ctx.arc(-5.5, hy + 2.5, 2, 0, 7); ctx.arc(5.5, hy + 2.5, 2, 0, 7); ctx.fill();
   }
   function drawHairBack(ctx, style, c, hy) {
     ctx.fillStyle = U.shade(c, -.12);

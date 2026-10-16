@@ -288,7 +288,7 @@ const World = (() => {
     for (const o of L.objects) {
       const d = defOf(o); if (d.flat) continue;
       const cs = cells(o), cx = cs.reduce((a, c) => a + c[0], 0) / cs.length + .5, cy = cs.reduce((a, c) => a + c[1], 0) / cs.length + .5;
-      list.push({ k: cx + cy, o: 1, f: () => { if (view.hidden === o) return; ctx.globalAlpha = view.fade === o ? .45 : 1; drawParts(ctx, o); ctx.globalAlpha = 1; } });
+      list.push({ k: cx + cy, o: 1, f: () => { if (view.hidden === o) return; ctx.globalAlpha = view.fade === o ? .45 : 1; drawParts(ctx, o); if (view.objFx) view.objFx(o); ctx.globalAlpha = 1; } });
     }
     for (const e of extra) list.push(e);
     list.sort((a, b) => a.k - b.k || a.o - b.o).forEach(i => i.f());
@@ -307,5 +307,5 @@ const World = (() => {
     return { cv, ox: -(H * 32 + 1), oy: -1, s: FS };
   }
 
-  return { W, H, DIRS, wallBetween, create, starter, cells, spotsFor, defOf, objectAt, blockedGrid, findPath, edgeOpen, computeRooms, setWallLine, canPlace, addObject, lotValue, drawScene, drawFlats, drawParts, renderFloors, inLot, setUid: n => { uid = Math.max(uid, n); } };
+  return { frameOf: frame, W, H, DIRS, wallBetween, create, starter, cells, spotsFor, defOf, objectAt, blockedGrid, findPath, edgeOpen, computeRooms, setWallLine, canPlace, addObject, lotValue, drawScene, drawFlats, drawParts, renderFloors, inLot, setUid: n => { uid = Math.max(uid, n); } };
 })();
