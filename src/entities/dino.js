@@ -181,6 +181,18 @@ export class Dino extends Entity {
     this.stateT += dt;
     this.atkT -= dt;
     this.spitT -= dt;
+    if (this.poisonT > 0) {
+      this.poisonT -= dt;
+      this.damage(dt * 5, null, {});
+      if (Math.random() < dt * 3) this.game.fx?.smoke(this.headPos(_v), 0x70b020, this.scale);
+      // venom drives it into a frenzy against its own kind
+      if (this.def.attack && (!this.target || this.target.kind !== 'dino' || !this.target.alive)) {
+        let best = null, bd = 40;
+        for (const e of this.game.entities) if (e !== this && e.kind === 'dino' && e.alive && !e.flyer) { const d = e.pos.distanceTo(this.pos); if (d < bd) { bd = d; best = e; } }
+        if (best) { this.target = best; this.setState('chase'); }
+      }
+      if (!this.alive) return;
+    }
     if (this.flyer) { this._updateFlyer(dt); return; }
     if (this.rider) { this._updateRidden(dt); this._animate(dt); return; }
     this.think -= dt;
@@ -376,7 +388,8 @@ export class Dino extends Entity {
     const hp = this.headPos(_v2);
     const dist = Math.min(hp.distanceTo(t.pos), this.pos.distanceTo(t.pos) - this.radius * 0.5);
     if (dist > d.attack.range + (t.radius || 0.5) + 1.0) return;
-    const dmg = d.attack.dmg * (0.85 + Math.random() * 0.3) * (0.7 + this.scale * 0.3);
+    let dmg = d.attack.dmg * (0.85 + Math.random() * 0.3) * (0.7 + this.scale * 0.3);
+    if (t.category === 'player') dmg *= { easy: 0.55, normal: 0.85, hard: 1.25 }[this.game.settings.difficulty] || 1;
     t.damage(dmg, this, { type: 'bite', knock: d.size * 1.5, from: this.pos });
     this.game.fx?.blood(_v.copy(t.pos).add(_v2.set(0, (t.height || 1) * 0.6, 0)), 10);
     if (this.kindName === 'trex') this.game.cameraShake?.(this.pos, 0.8, 0.6);

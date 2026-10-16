@@ -8,11 +8,11 @@ import { noise } from '../core/noise.js';
 export const SPECIES = {
   raptor: {
     label: 'Velociraptor', len: 1,
-    spine: [[-2.25, 1.0, 0.02, 0.02], [-1.7, 1.03, 0.07, 0.08], [-1.05, 1.09, 0.13, 0.15], [-0.4, 1.12, 0.21, 0.25], [0.15, 1.1, 0.23, 0.29], [0.55, 1.18, 0.17, 0.21], [0.82, 1.42, 0.085, 0.1], [0.98, 1.6, 0.08, 0.095], [1.12, 1.66, 0.1, 0.11], [1.35, 1.62, 0.075, 0.075], [1.55, 1.57, 0.04, 0.045]],
-    bones: [['tail4', -1.75], ['tail3', -1.25], ['tail2', -0.8], ['tail1', -0.35], ['pelvis', -0.15], ['chest', 0.45], ['neck1', 0.75], ['neck2', 0.95], ['head', 1.1]],
+    spine: [[-2.25, 1.0, 0.02, 0.02], [-1.7, 1.03, 0.07, 0.08], [-1.05, 1.09, 0.13, 0.15], [-0.4, 1.12, 0.21, 0.25], [0.15, 1.1, 0.23, 0.29], [0.55, 1.16, 0.17, 0.21], [0.85, 1.32, 0.09, 0.1], [1.02, 1.44, 0.08, 0.095], [1.16, 1.5, 0.1, 0.11], [1.4, 1.46, 0.075, 0.075], [1.62, 1.41, 0.04, 0.045]],
+    bones: [['tail4', -1.75], ['tail3', -1.25], ['tail2', -0.8], ['tail1', -0.35], ['pelvis', -0.15], ['chest', 0.45], ['neck1', 0.78], ['neck2', 0.98], ['head', 1.14]],
     hind: { z: -0.18, x: 0.17, y: 1.08, thigh: 0.42, shin: 0.48, meta: 0.32, r: 0.13, foot: 'claw' },
     arms: { z: 0.55, x: 0.13, y: 1.05, len: 0.28, r: 0.04 },
-    jaw: { z: 1.08, y: 1.57, len: 0.47, w: 0.07, h: 0.05 }, teeth: true, eye: { z: 1.2, y: 1.69, x: 0.07, r: 0.022, color: 0xd8a020 },
+    jaw: { z: 1.12, y: 1.41, len: 0.5, w: 0.07, h: 0.05 }, teeth: true, eye: { z: 1.24, y: 1.53, x: 0.07, r: 0.022, color: 0xd8a020 },
     colors: { back: 0x6b5a3a, belly: 0xc8b48a, stripe: 0x3a2c1c, pattern: 'stripes' }, feathers: true,
   },
   trex: {
@@ -53,10 +53,10 @@ export const SPECIES = {
   },
   trike: {
     label: 'Triceratops', len: 1, quad: true,
-    spine: [[-4.3, 1.5, 0.05, 0.05], [-3.3, 1.75, 0.25, 0.28], [-2.2, 2.15, 0.6, 0.65], [-0.8, 2.45, 1.05, 1.05], [0.6, 2.4, 1.1, 1.05], [1.8, 2.1, 0.85, 0.85], [2.6, 1.85, 0.55, 0.6], [3.2, 1.75, 0.6, 0.6], [3.9, 1.55, 0.42, 0.4], [4.5, 1.3, 0.2, 0.2]],
+    spine: [[-4.3, 1.5, 0.05, 0.05], [-3.3, 1.75, 0.25, 0.28], [-2.2, 2.1, 0.6, 0.62], [-0.8, 2.35, 1.0, 0.92], [0.6, 2.3, 1.05, 0.9], [1.8, 2.05, 0.8, 0.75], [2.55, 1.85, 0.6, 0.62], [3.2, 1.78, 0.72, 0.7], [3.95, 1.5, 0.5, 0.46], [4.6, 1.22, 0.22, 0.2]],
     bones: [['tail3', -3.4], ['tail2', -2.6], ['tail1', -1.8], ['pelvis', -1.0], ['chest', 1.0], ['neck1', 2.2], ['head', 2.7]],
-    hind: { z: -1.1, x: 0.75, y: 2.0, thigh: 1.0, shin: 0.85, meta: 0.25, r: 0.4, foot: 'elephant' },
-    front: { z: 1.6, x: 0.8, y: 1.6, thigh: 0.75, shin: 0.75, meta: 0.15, r: 0.3, foot: 'elephant' },
+    hind: { z: -1.1, x: 0.78, y: 2.0, thigh: 1.0, shin: 0.85, meta: 0.25, r: 0.5, foot: 'elephant' },
+    front: { z: 1.6, x: 0.85, y: 1.6, thigh: 0.75, shin: 0.75, meta: 0.15, r: 0.4, foot: 'elephant' },
     jaw: { z: 3.1, y: 1.4, len: 1.2, w: 0.3, h: 0.18 }, teeth: false, beak: true, eye: { z: 3.35, y: 1.88, x: 0.43, r: 0.05, color: 0x1a1008 },
     colors: { back: 0x6a5a48, belly: 0xa89a80, stripe: 0x4a3a2a, pattern: 'mottled' }, horns: true, bigFrill: true,
   },
@@ -271,23 +271,29 @@ export function buildDino(kind, scale = 1, tint = 0) {
   R.skinned(body, weightFn, skinColor);
 
   const dark = new THREE.Color(C.back).multiplyScalar(0.7);
+  const legBase = back.clone().lerp(belly, 0.12).multiplyScalar(0.9);
+  const legColor = (p, n, out) => {
+    out.copy(legBase);
+    const z = p.z / sc, y = p.y / sc;
+    out.offsetHSL(0, 0, noise.noise2(z * 11, y * 11 + p.x) * 0.06 - (n.y < -0.3 ? 0.04 : 0));
+  };
   const claw = new THREE.Color(0x2a2620);
   // ---- legs ----
   for (const lg of legs) {
     const L = lg.L;
     const thigh = limb(L.thigh * sc, L.r * sc * (lg.front ? 1 : 1.25), L.r * 0.6 * sc, 10, 5, lg.front ? 0.05 : 0.25);
-    R.rigid(thigh, lg.hip, skinColor);
+    R.rigid(thigh, lg.hip, legColor);
     if (!lg.front && L.foot !== 'elephant') {
       const muscle = ellipsoid(L.r * 1.25 * sc, L.thigh * 0.55 * sc, L.r * 1.35 * sc); muscle.translate(0, -L.thigh * 0.3 * sc, 0);
-      R.rigid(muscle, lg.hip, skinColor);
+      R.rigid(muscle, lg.hip, legColor);
     }
-    R.rigid(limb(L.shin * sc, L.r * 0.62 * sc, L.r * 0.42 * sc, 8, 4), lg.knee, skinColor);
-    R.rigid(limb(L.meta * sc, L.r * 0.4 * sc, L.r * 0.34 * sc, 7, 3), lg.ankle, skinColor);
+    R.rigid(limb(L.shin * sc, L.r * 0.62 * sc, L.r * 0.42 * sc, 8, 4), lg.knee, legColor);
+    R.rigid(limb(L.meta * sc, L.r * 0.4 * sc, L.r * 0.34 * sc, 7, 3), lg.ankle, legColor);
     if (L.foot === 'claw') {
       for (const tx of [-1, 0, 1]) {
         const t = limb(L.r * 1.5 * sc, L.r * 0.18 * sc, L.r * 0.1 * sc, 5, 2);
         t.rotateX(-Math.PI / 2 + 0.1); t.rotateY(tx * 0.35); t.translate(0, -L.r * 0.1 * sc, 0);
-        R.rigid(t, lg.toe, skinColor);
+        R.rigid(t, lg.toe, legColor);
         const cl = new THREE.ConeGeometry(L.r * 0.08 * sc, L.r * 0.4 * sc, 5); cl.rotateX(Math.PI / 2 + 0.4);
         cl.translate(Math.sin(tx * 0.35) * L.r * 1.5 * sc, -L.r * 0.15 * sc, Math.cos(tx * 0.35) * L.r * 1.55 * sc);
         R.rigid(cl, lg.toe, claw);
@@ -305,8 +311,8 @@ export function buildDino(kind, scale = 1, tint = 0) {
   }
   for (const ar of arms) {
     const A = S.arms;
-    R.rigid(limb(A.len * 0.5 * sc, A.r * 1.3 * sc, A.r * sc, 6, 3), ar.sh, skinColor);
-    R.rigid(limb(A.len * 0.5 * sc, A.r * sc, A.r * 0.7 * sc, 6, 3), ar.el, skinColor);
+    R.rigid(limb(A.len * 0.5 * sc, A.r * 1.3 * sc, A.r * sc, 6, 3), ar.sh, legColor);
+    R.rigid(limb(A.len * 0.5 * sc, A.r * sc, A.r * 0.7 * sc, 6, 3), ar.el, legColor);
     for (const k of [-1, 1]) { const c = new THREE.ConeGeometry(A.r * 0.35 * sc, A.r * 2 * sc, 4); c.rotateX(Math.PI + 0.5); c.translate(k * A.r * 0.4 * sc, -A.len * 0.55 * sc, A.r * 0.4 * sc); R.rigid(c, ar.el, claw); }
   }
   // ---- head details ----
@@ -347,8 +353,8 @@ export function buildDino(kind, scale = 1, tint = 0) {
     }
   }
   if (S.horns) {
-    for (const sx of [-1, 1]) { const h = new THREE.ConeGeometry(0.12 * sc, 1.1 * sc, 8); h.rotateX(1.0); h.translate(sx * 0.32 * sc, 2.25 * sc, 3.45 * sc); R.rigid(toHead(h), made.head, 0xe0d4b0); }
-    const nh = new THREE.ConeGeometry(0.1 * sc, 0.45 * sc, 8); nh.rotateX(0.5); nh.translate(0, 1.85 * sc, 4.15 * sc); R.rigid(toHead(nh), made.head, 0xe0d4b0);
+    for (const sx of [-1, 1]) { const h = new THREE.ConeGeometry(0.12 * sc, 1.1 * sc, 8); h.rotateX(1.0); h.translate(sx * 0.34 * sc, 2.5 * sc, 3.5 * sc); R.rigid(toHead(h), made.head, 0xe0d4b0); }
+    const nh = new THREE.ConeGeometry(0.1 * sc, 0.45 * sc, 8); nh.rotateX(0.5); nh.translate(0, 1.98 * sc, 4.2 * sc); R.rigid(toHead(nh), made.head, 0xe0d4b0);
   }
   if (S.bigFrill) {
     const fr = new THREE.CylinderGeometry(1.35 * sc, 1.35 * sc, 0.12 * sc, 22, 1, false, Math.PI * 0.45, Math.PI * 1.1);

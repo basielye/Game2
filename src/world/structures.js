@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { getTex } from '../core/textures.js';
 import { mulberry32 } from '../core/noise.js';
 import { locById, LOCATIONS } from '../data/world.js';
-import { merge } from './geom.js';
+import { merge, mergeGeometries } from './geom.js';
 
 function mats() {
   const planks = getTex('planks');
@@ -194,13 +194,13 @@ export class Structures {
     return g;
   }
 
-  crate(x, z, ry = 0, lootable = false, y = null) {
+  crate(x, z, ry = 0, lootable = false, y = null, forceId = null) {
     const g = this.anchor(x, z, ry, y);
     this.box(g, 1, 0.8, 0.8, this.M.wood, 0, 0, 0);
     if (lootable) {
       const lid = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.1, 0.85), this.M.yellow);
-      lid.position.y = 0.85; g.add(lid);
-      const id = 'crate_' + Math.round(x) + '_' + Math.round(z);
+      lid.position.y = 0.85; lid.userData.dynamic = true; g.add(lid);
+      const id = forceId || 'crate_' + Math.round(x) + '_' + Math.round(z);
       const item = { pos: g.position.clone().add(new THREE.Vector3(0, 0.6, 0)), radius: 2, label: 'Search supply crate', action: 'loot', id, mesh: lid };
       this.interactables.push(item);
     }
@@ -315,6 +315,34 @@ export class Structures {
     this.jeep(70, 640, 0.4, true); this.jeep(-210, 140, 1.4, true, true); this.jeep(300, 345, 2.4, true); this.jeep(-220, -170, 0.8, true, true);
     // scattered loot crates in the wild
     for (const [x, z] of [[310, 420], [-140, -40], [520, 120], [-380, -330], [180, -380], [-640, 120], [640, -260], [90, -520], [-520, 380], [420, 560]]) this.crate(x, z, this.rng() * 6, true);
+    this.optimize();
+  }
+
+  // Static batching: merge every non-dynamic mesh by material within 160m cells (keeps frustum culling useful).
+  optimize() {
+    this.group.updateMatrixWorld(true);
+    const buckets = new Map();
+    const victims = [];
+    this.group.traverse((o) => {
+      if (!o.isMesh || o.isInstancedMesh || o.userData.dynamic || o.material === this.beacon?.material) return;
+      const wp = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
+      const key = o.material.uuid + ':' + Math.floor(wp.x / 160) + ':' + Math.floor(wp.z / 160) + ':' + (o.castShadow ? 1 : 0);
+      let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      g.applyMatrix4(o.matrixWorld);
+      for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
+      if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+      if (!g.attributes.normal) g.computeVertexNormals();
+      if (!buckets.has(key)) buckets.set(key, { mat: o.material, geos: [], shadow: o.castShadow });
+      buckets.get(key).geos.push(g);
+      victims.push(o);
+    });
+    for (const o of victims) o.removeFromParent();
+    for (const b of buckets.values()) {
+      const m = new THREE.Mesh(mergeGeometries(b.geos), b.mat);
+      m.castShadow = b.shadow; m.receiveShadow = true;
+      m.matrixAutoUpdate = false;
+      this.group.add(m);
+    }
   }
 
   buildHaven() {
@@ -388,8 +416,9 @@ export class Structures {
       this.colliders.addCircle(x, z, 0.4, hh - 1, hh + 5);
     }
     const palMesh = new THREE.Mesh(merge(pal), M.darkWood); palMesh.castShadow = true; palMesh.receiveShadow = true; this.group.add(palMesh);
+    this.havenTowers = [];
     for (const [ax, az] of [[0, 1], [-1, 0], [0.866, -0.5], [-0.34, -0.94]]) {
-      this.watchtower(L.x + ax * (R + 4) + az * 8, L.z + az * (R + 4) - ax * 8, 0);
+      this.havenTowers.push(this.watchtower(L.x + ax * (R + 4) + az * 8, L.z + az * (R + 4) - ax * 8, 0).top);
     }
     this.interactables.push({ pos: this.havenBuildings.store.clone(), radius: 3, label: 'Trade at General Store', action: 'shop', id: 'store' });
     this.interactables.push({ pos: this.havenBuildings.gunsmith.clone(), radius: 3, label: 'Visit Gunsmith', action: 'shop', id: 'gunsmith' });
@@ -433,9 +462,9 @@ export class Structures {
     // half-buried concrete bunker with a steel door
     this.box(g, 9, 3.4, 7, M.concrete, 0, -0.4, 0);
     const mound = new THREE.Mesh(new THREE.SphereGeometry(6.5, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ map: getTex('grass'), roughness: 1 }));
-    mound.scale.set(1, 0.55, 0.9); mound.position.set(0, 1.5, -1.8); mound.receiveShadow = true; g.add(mound);
+    mound.scale.set(1.25, 0.5, 1.1); mound.position.set(0, 0.2, -2.6); mound.receiveShadow = true; g.add(mound);
     const door = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.4, 0.15), M.rust); door.position.set(0, 1.2, 3.55); door.rotation.y = 0.0; g.add(door);
-    this.sign(g, 'RANGER STATION 4', 0, 3.4, 3.6, '#e8d8a0', 4.5);
+    this.sign(g, 'RANGER STATION 4', 0, 2.75, 3.56, '#e8d8a0', 3.2);
     this.addFire(g, 3, 0, 7);
     this.crate(L.x - 4, L.z + 6, 0.4, true);
     this.tent(L.x + 8, L.z + 2, 0.3);
@@ -448,14 +477,13 @@ export class Structures {
     const pts = [];
     for (let i = 0; i <= 10; i++) { const a = (i / 10) * Math.PI * 2; pts.push([L.x + Math.cos(a) * 32, L.z + Math.sin(a) * 26]); }
     this.fence(pts, [3, 7], 9);
-    this.watchtower(L.x + 30, L.z - 20, 0.3);
-    this.watchtower(L.x - 28, L.z + 22, 1.2);
+    this.campTowers = { raptorpen: [this.watchtower(L.x + 30, L.z - 20, 0.3).top, this.watchtower(L.x - 28, L.z + 22, 1.2).top] };
     this.building(L.x - 10, L.z - 6, 0.4, 8, 6, 3.6, { mat: M.darkWood, roof: M.rust, porch: false });
     this.tent(L.x + 8, L.z + 8, 0.5, true);
     this.tent(L.x + 14, L.z - 4, 1.2, true);
     this.addFire(this.group, L.x + 2, L.h, L.z + 2);
     for (const [x, z] of [[-4, 12], [16, 10], [10, -14]]) this.crate(L.x + x, L.z + z, this.rng() * 3, false);
-    this.crate(L.x - 14, L.z + 2, 0.4, true);
+    this.crate(L.x - 14, L.z + 2, 0.4, true, null, 'fusecrate');
     this.sign(this.anchor(L.x + 36, L.z, Math.PI / 2), 'KEEP OUT - BLACK FANG', 0, 2.2, 0, '#ff6a50', 4.2);
   }
 
@@ -476,7 +504,7 @@ export class Structures {
     this.powerPanel = panel;
     const box = new THREE.Mesh(new THREE.BoxGeometry(1.4, 2, 0.5), M.yellow); box.position.set(0, 1, 7.4); g.add(box);
     this.interactables.push({ pos: panel, radius: 2.6, label: 'Restore power', action: 'power', id: 'power' });
-    this.watchtower(L.x + 30, L.z + 24, 0);
+    this.campTowers.geothermal = [this.watchtower(L.x + 30, L.z + 24, 0).top];
     this.tent(L.x - 24, L.z + 22, 0.4, true);
     this.tent(L.x - 30, L.z + 14, 1.1, true);
     this.addFire(this.group, L.x - 26, this.h(L.x - 26, L.z + 30), L.z + 30);
@@ -540,14 +568,12 @@ export class Structures {
       this.colliders.addBox((ax + bx) / 2, (az + bz) / 2, 0.4, len / 2, Math.atan2(bx - ax, bz - az), -50, 400);
     }
     const wm = new THREE.Mesh(merge(walls), M.darkWood); wm.castShadow = true; wm.receiveShadow = true; this.group.add(wm);
-    this.watchtower(L.x + 40, L.z - 18, 0);
-    this.watchtower(L.x - 40, L.z + 18, 0.5);
-    this.watchtower(L.x + 4, L.z + 38, 0.2);
+    this.campTowers.cranecamp = [this.watchtower(L.x + 40, L.z - 18, 0).top, this.watchtower(L.x - 40, L.z + 18, 0.5).top, this.watchtower(L.x + 4, L.z + 38, 0.2).top];
     this.building(L.x, L.z - 18, 0, 12, 9, 5, { mat: M.darkWood, roof: M.rust, sign: "CRANE'S LAW", signColor: '#ff7050', lit: true });
     this.tent(L.x - 18, L.z + 4, 0.2, true); this.tent(L.x + 18, L.z + 8, 1.0, true); this.tent(L.x + 8, L.z + 18, 2.2, true);
     this.addFire(this.group, L.x, L.h, L.z + 6, true);
     for (const [x, z] of [[-10, 14], [14, -4], [-20, -10]]) this.crate(L.x + x, L.z + z, this.rng() * 3, false);
-    this.crate(L.x + 4, L.z - 12, 0, true);
+    this.crate(L.x + 4, L.z - 12, 0, true, null, 'cranecrate');
     // cages with captured raptors (visual)
     for (const x of [-24, -30]) {
       const g = this.anchor(L.x + x, L.z - 14, 0);
@@ -616,7 +642,7 @@ export class Structures {
     const glass = new THREE.Mesh(new THREE.BoxGeometry(18.2, 2, 12.2), M.glass); glass.position.y = 7; g.add(glass);
     this.box(g, 18.4, 0.3, 12.4, M.metal, 0, 8, 0, 0, false);
     this.sign(g, 'CREATION LAB', 0, 4.5, 6.1, '#aee0ff', 6);
-    this.crate(L.x + 10, L.z + 8, 0.2, true);
+    this.crate(L.x + 10, L.z + 8, 0.2, true, null, 'labcrate');
   }
 
   buildShipwreck() {

@@ -169,6 +169,7 @@ const builders = {
       }
       const n = fbmTile(nz, u, v, 8, 3);
       const i = (y * size + x) * 4;
+      if (!alpha) { hue = 0.5; shade = 0.75; }
       data[i] = c255((mix(40, 90, hue) + n * 30) * shade);
       data[i + 1] = c255((mix(86, 140, hue) + n * 30) * shade);
       data[i + 2] = c255((mix(26, 48, hue)) * shade);
@@ -188,7 +189,7 @@ const builders = {
       const gap = leafletPhase < 0.18;
       let a = across < width && !gap ? 1 : 0;
       if (across < 0.05 && u < 0.98) a = 1;
-      const shade = 0.7 + 0.3 * (1 - across) - (gap ? 0.2 : 0);
+      const shade = a ? 0.7 + 0.3 * (1 - across) - (gap ? 0.2 : 0) : 0.75;
       const tip = u > 0.8 ? (u - 0.8) * 2 : 0;
       const i = (y * size + x) * 4;
       data[i] = c255((52 + tip * 60) * shade);
@@ -215,7 +216,8 @@ const builders = {
         if (Math.abs(u - cx) < w) { a = 1; s = Math.max(s, 0.5 + 0.5 * t); }
       }
       const i = (y * size + x) * 4;
-      data[i] = c255(60 * s + 30); data[i + 1] = c255(110 * s + 40); data[i + 2] = c255(30 * s + 15); data[i + 3] = a * 255;
+      if (!a) s = 0.7;
+      data[i] = c255(70 * s + 40); data[i + 1] = c255(120 * s + 55); data[i + 2] = c255(32 * s + 18); data[i + 3] = a * 255;
     }
     return toTexture(data, size, { repeat: false });
   },

@@ -8,6 +8,9 @@ import { taperTube, frondStrip, leafCluster, blob, merge, colorize } from './geo
 import { LOCATIONS } from '../data/world.js';
 
 export const windUniforms = { uTime: { value: 0 }, uWind: { value: 1 } };
+const FOLIAGE_NORMAL = `float faceDirection = 1.0;
+vec3 normal = normalize( vNormal );
+vec3 nonPerturbedNormal = normal;`;
 
 function addWind(mat, { amp = 1, flutter = 1, key = 'w' } = {}) {
   mat.onBeforeCompile = (sh) => {
@@ -28,6 +31,8 @@ function addWind(mat, { amp = 1, flutter = 1, key = 'w' } = {}) {
         float fl = sin(uTime * 7.0 + position.x * 2.1 + position.z * 1.7 + wbase.x) * 0.035 * ${flutter.toFixed(3)} * uWind * min(hgt, 3.0);
         transformed.y += fl; transformed.x += fl * 0.5;
       }`);
+    // foliage: never flip normals on back faces (avoids black undersides on double-sided cards)
+    sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>', FOLIAGE_NORMAL);
   };
   mat.customProgramCacheKey = () => 'wind-' + key;
   return mat;
@@ -36,9 +41,9 @@ function addWind(mat, { amp = 1, flutter = 1, key = 'w' } = {}) {
 function makeMaterials() {
   const bark = new THREE.MeshStandardMaterial({ map: getTex('bark'), roughness: 0.95, color: 0xb8a890 });
   const palmBark = new THREE.MeshStandardMaterial({ map: getTex('palmBark'), roughness: 0.9 });
-  const leaf = addWind(new THREE.MeshStandardMaterial({ map: getTex('leaves'), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.75, color: 0xd8f0c0 }), { amp: 1, flutter: 1, key: 'leaf' });
-  const frond = addWind(new THREE.MeshStandardMaterial({ map: getTex('frond'), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.7, color: 0xe8ffd0 }), { amp: 1.6, flutter: 1.4, key: 'frond' });
-  const conifer = addWind(new THREE.MeshStandardMaterial({ map: getTex('frond'), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.85, color: 0x6f9a6a }), { amp: 0.6, flutter: 0.5, key: 'conifer' });
+  const leaf = addWind(new THREE.MeshStandardMaterial({ map: getTex('leaves'), alphaTest: 0.45, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.75, color: 0xd8f0c0 }), { amp: 1, flutter: 1, key: 'leaf' });
+  const frond = addWind(new THREE.MeshStandardMaterial({ map: getTex('frond'), alphaTest: 0.5, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.7, color: 0xe8ffd0 }), { amp: 1.6, flutter: 1.4, key: 'frond' });
+  const conifer = addWind(new THREE.MeshStandardMaterial({ map: getTex('frond'), alphaTest: 0.5, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.85, color: 0x6f9a6a }), { amp: 0.6, flutter: 0.5, key: 'conifer' });
   const farLeaf = addWind(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: false }), { amp: 0.6, flutter: 0, key: 'farleaf' });
   const rock = new THREE.MeshStandardMaterial({ map: getTex('rock'), roughness: 0.9, vertexColors: true });
   return { bark, palmBark, leaf, frond, conifer, farLeaf, rock };
@@ -60,7 +65,9 @@ function buildPalm(M, rng) {
   }
   const crown = merge(fronds);
   const farTrunk = taperTube(curve, 3, 4, (t) => 0.32 - t * 0.14);
-  const farCrown = merge(fronds.map((f) => f.clone()));
+  const farFronds = [];
+  for (let i = 0; i < 7; i++) farFronds.push(frondStrip(top, (i / 7) * Math.PI * 2, 5, 1.7, 0.9, 0.35, 3, 0.18));
+  const farCrown = merge(farFronds);
   return { near: [{ geo: trunk, mat: M.palmBark }, { geo: crown, mat: M.frond }], far: [{ geo: farTrunk, mat: M.palmBark }, { geo: farCrown, mat: M.frond }], radius: 0.35 };
 }
 
@@ -87,9 +94,14 @@ function buildJungle(M, rng, big = false) {
   clusters.push({ c: curve.getPointAt(1).add(new THREE.Vector3(0, 1, 0)), r: (big ? 4.4 : 3.1) });
   const leaves = merge(clusters.map((k) => leafCluster(k.c, k.r, big ? 22 : 16, big ? 4.2 : 3.4, rng)));
   // far LOD: lumpy blobs with vertex colour
-  const farBlobs = clusters.map((k) => { const b = blob(k.r * 0.95, 1, rng, 0.75, 0.2); b.translate(k.c.x, k.c.y, k.c.z); return colorize(b, 0.2 + rng() * 0.06, 0.34 + rng() * 0.08, 0.12); });
-  const farLeaves = merge(farBlobs);
-  const farTrunk = taperTube(curve, 2, 5, (t) => r0 * (1 - t * 0.6));
+  // far LOD: a single lumpy canopy blob spanning the clusters
+  const bb = new THREE.Box3();
+  for (const k of clusters) bb.expandByPoint(k.c.clone().addScalar(k.r * 0.8)).expandByPoint(k.c.clone().subScalar(k.r * 0.8));
+  const cs = bb.getSize(new THREE.Vector3()), cc = bb.getCenter(new THREE.Vector3());
+  const farLeaves = blob(1, 1, rng, 1, 0.18);
+  farLeaves.scale(cs.x * 0.55, cs.y * 0.5, cs.z * 0.55); farLeaves.translate(cc.x, cc.y, cc.z);
+  colorize(farLeaves, 0.2 + rng() * 0.05, 0.33 + rng() * 0.07, 0.12);
+  const farTrunk = taperTube(curve, 2, 4, (t) => r0 * (1 - t * 0.6));
   return { near: [{ geo: merge(woods), mat: M.bark }, { geo: leaves, mat: M.leaf }], far: [{ geo: farTrunk, mat: M.bark }, { geo: farLeaves, mat: M.farLeaf }], radius: r0 * 0.9 };
 }
 
@@ -125,7 +137,8 @@ function buildConifer(M, rng) {
   const far = blob(1, 1, rng, 1, 0.15);
   far.scale(3.2, h * 0.42, 3.2); far.translate(0, h * 0.52, 0);
   colorize(far, 0.12, 0.2, 0.1);
-  return { near: [{ geo: trunk, mat: M.bark }, { geo: crown, mat: M.conifer }], far: [{ geo: trunk, mat: M.bark }, { geo: far, mat: M.farLeaf }], radius: 0.4 };
+  const farTrunk = taperTube(curve, 1, 4, (t) => 0.4 * (1 - t * 0.9));
+  return { near: [{ geo: trunk, mat: M.bark }, { geo: crown, mat: M.conifer }], far: [{ geo: farTrunk, mat: M.bark }, { geo: far, mat: M.farLeaf }], radius: 0.4 };
 }
 
 function buildBush(M, rng) {
@@ -170,6 +183,7 @@ export class Vegetation {
     this.quality = quality;
     this.buckets = new Map();
     this.lastPos = new THREE.Vector3(1e9, 0, 0);
+    this.lastDir = new THREE.Vector3(0, 0, 1);
     this.species = [];
     this._makeSpecies();
     this._scatter();
@@ -296,11 +310,16 @@ export class Vegetation {
     this.species.forEach((sp, si) => this.batches[si].near.forEach((m) => (m.castShadow = on && sp.shadow)));
   }
 
-  update(dt, camPos, force = false) {
+  update(dt, camPos, force = false, camDir = null) {
     windUniforms.uTime.value += dt;
     this.grass.update(camPos);
-    if (!force && camPos.distanceToSquared(this.lastPos) < 36) return;
+    const turned = camDir && this.lastDir.dot(camDir) < 0.95;
+    if (!force && !turned && camPos.distanceToSquared(this.lastPos) < 36) return;
     this.lastPos.copy(camPos);
+    if (camDir) this.lastDir.copy(camDir);
+    const cdx = camDir ? camDir.x : 0, cdz = camDir ? camDir.z : 0;
+    const cdl = Math.hypot(cdx, cdz) || 1;
+    const fx = cdx / cdl, fz = cdz / cdl, cull = !!camDir && !force;
     const counts = this.species.map(() => [0, 0]);
     const lodMul = this.quality.lod;
     const maxFar = 1000 * lodMul;
@@ -314,6 +333,7 @@ export class Vegetation {
         const dx = x - camPos.x, dz = z - camPos.z;
         const d2 = dx * dx + dz * dz;
         const nd = sp.nearDist * lodMul;
+        if (cull && d2 > 900) { const inv = 1 / Math.sqrt(d2); if ((dx * fx + dz * fz) * inv < 0.25) continue; }
         let lod;
         if (d2 < nd * nd) lod = 0;
         else if (sp.farDist > 0 && d2 < (sp.farDist * lodMul) ** 2) lod = 1;
@@ -336,8 +356,8 @@ export class Vegetation {
     }
     this.species.forEach((sp, si) => {
       const B = this.batches[si];
-      for (const m of B.near) { m.count = counts[si][0]; m.instanceMatrix.needsUpdate = true; }
-      for (const m of B.far) { m.count = counts[si][1]; m.instanceMatrix.needsUpdate = true; }
+      for (const m of B.near) { m.count = counts[si][0]; m.visible = m.count > 0; m.instanceMatrix.needsUpdate = true; }
+      for (const m of B.far) { m.count = counts[si][1]; m.visible = m.count > 0; m.instanceMatrix.needsUpdate = true; }
     });
   }
 }
@@ -360,7 +380,7 @@ class Grass {
       blades.push(g);
     }
     const geo = merge(blades);
-    const mat = new THREE.MeshStandardMaterial({ map: getTex('grassBlade'), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.85, color: 0xcfe0a8 });
+    const mat = new THREE.MeshStandardMaterial({ map: getTex('grassBlade'), alphaTest: 0.5, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.85, color: 0xcfe0a8 });
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = windUniforms.uTime;
       sh.uniforms.uWind = windUniforms.uWind;
@@ -379,7 +399,8 @@ class Grass {
           if (pd > 0.001) { transformed.xz += normalize(away) * push; transformed.y -= push * 0.4; }`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', '#include <common>\nvarying float vGy;')
-        .replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.rgb *= mix(0.45, 1.15, clamp(vGy, 0.0, 1.0));');
+        .replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.rgb *= mix(0.6, 1.2, clamp(vGy, 0.0, 1.0));')
+        .replace('#include <normal_fragment_begin>', FOLIAGE_NORMAL);
     };
     mat.customProgramCacheKey = () => 'grass';
     this.mesh = new THREE.InstancedMesh(geo, mat, this.cap);
