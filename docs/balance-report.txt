@@ -1,0 +1,83 @@
+Lanternfall balance — 10,000 random valid plans per night
+
+Night 1: First Light
+  win rate 13.6%   stars 0/1/2/3: 86.4% / 0.0% / 0.0% / 13.6%
+  no lanterns: 0/1 home   single lanterns earning 3★: 3/50
+  best found: 1/1 home, 4 oil — Lantern@4,4
+  strongest placement: Lantern@4,4 (in 5.1% of plans, 3★ 100.0% of the time)
+  3★ lift by lantern type (pts): Lantern +0.0
+  ⚠ DOMINANT: Lantern@4,4 gets 3★ 100.0% of the time
+
+Night 2: Two Gaps
+  win rate 27.8%   stars 0/1/2/3: 72.2% / 27.4% / 0.0% / 0.4%
+  no lanterns: 0/3 home   single lanterns earning 3★: 0/50
+  best found: 3/3 home, 9 oil — Lantern@2,4 + Lantern@5,4
+  strongest placement: Lantern@2,4 (in 5.3% of plans, 3★ 5.1% of the time)
+  3★ lift by lantern type (pts): Lantern +0.0
+  ✓ looks balanced
+
+Night 3: The Beacon
+  win rate 15.9%   stars 0/1/2/3: 84.1% / 12.5% / 0.0% / 3.4%
+  no lanterns: 0/2 home   single lanterns earning 3★: 2/102
+  best found: 2/2 home, 5 oil — Beacon@3,4
+  strongest placement: Beacon@3,3 (in 1.9% of plans, 3★ 100.0% of the time)
+  3★ lift by lantern type (pts): Lantern -2.9, Beacon +5.7
+  ✓ looks balanced
+
+Night 4: Hedge Hopper
+  win rate 4.3%   stars 0/1/2/3: 95.7% / 0.0% / 0.0% / 4.3%
+  no lanterns: 0/2 home   single lanterns earning 3★: 0/76
+  best found: 2/2 home, 8 oil — Lantern@2,5 + Lantern@5,5
+  strongest placement: Beacon@3,5 (in 2.8% of plans, 3★ 27.6% of the time)
+  3★ lift by lantern type (pts): Lantern +0.2, Beacon +0.2
+  ✓ looks balanced
+
+Night 5: Across the Water
+  win rate 11.5%   stars 0/1/2/3: 88.5% / 11.4% / 0.0% / 0.1%
+  no lanterns: 0/2 home   single lanterns earning 3★: 0/144
+  best found: 2/2 home, 8 oil — Reflector@2,5N + Reflector@5,5N
+  strongest placement: Reflector@2,5N (in 2.0% of plans, 3★ 3.6% of the time)
+  3★ lift by lantern type (pts): Lantern -0.1, Beacon -0.1, Reflector +0.0
+  ✓ looks balanced
+
+Night 6: Sparks
+  win rate 11.6%   stars 0/1/2/3: 88.4% / 5.9% / 3.6% / 2.1%
+  no lanterns: 1/4 home   single lanterns earning 3★: 2/371
+  best found: 4/4 home, 3 oil — Flare@3,2
+  strongest placement: Flare@3,2 (in 1.1% of plans, 3★ 100.0% of the time)
+  3★ lift by lantern type (pts): Lantern -1.5, Beacon -2.1, Reflector -2.1, Flare +5.7
+  ✓ looks balanced
+
+Night 7: The Hunter
+  win rate 32.7%   stars 0/1/2/3: 67.3% / 31.7% / 0.0% / 1.1%
+  no lanterns: 1/3 home   single lanterns earning 3★: 1/392
+  best found: 3/3 home, 5 oil — Lantern@2,7
+  strongest placement: Lantern@2,7 (in 1.1% of plans, 3★ 100.0% of the time)
+  3★ lift by lantern type (pts): Lantern +3.4, Beacon -1.1, Reflector -1.1, Flare -1.1
+  ✓ looks balanced
+
+Night 8: Fog Pie
+  win rate 25.9%   stars 0/1/2/3: 74.1% / 24.7% / 0.0% / 1.2%
+  no lanterns: 0/2 home   single lanterns earning 3★: 1/408
+  best found: 2/2 home, 4 oil — Fog Pie@3,5
+  strongest placement: Fog Pie@3,5 (in 1.2% of plans, 3★ 100.0% of the time)
+  3★ lift by lantern type (pts): Lantern -1.2, Beacon -1.2, Reflector -1.2, Flare -1.2, Fog Pie +9.5
+  ✓ looks balanced
+
+Night 9: Mist in the Lanes
+  win rate 11.2%   stars 0/1/2/3: 88.8% / 10.8% / 0.4% / 0.1%
+  no lanterns: 0/4 home   single lanterns earning 3★: 0/464
+  best found: 4/4 home, 7 oil — Flare@3,5 + Flare@6,4
+  strongest placement: Flare@3,5 (in 1.5% of plans, 3★ 4.1% of the time)
+  3★ lift by lantern type (pts): Lantern -0.0, Beacon -0.1, Reflector -0.1, Flare +0.3, Fog Pie -0.0
+  ✓ looks balanced
+
+Night 10: The Long Night
+  win rate 28.0%   stars 0/1/2/3: 72.0% / 21.1% / 6.8% / 0.1%
+  no lanterns: 0/6 home   single lanterns earning 3★: 0/400
+  best found: 6/6 home, 9 oil — Flare@2,5 + Lantern@5,4
+  strongest placement: Reflector@5,3W (in 0.3% of plans, 3★ 11.8% of the time)
+  3★ lift by lantern type (pts): Lantern +0.0, Beacon -0.1, Reflector -0.0, Flare +0.1, Fog Pie -0.1
+  ✓ looks balanced
+
+done in 9.1s

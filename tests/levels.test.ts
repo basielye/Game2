@@ -13,7 +13,7 @@ const SOLUTIONS: Record<string, Placement[]> = {
   'the-hunter': [{ x: 2, y: 7, type: 'basic' }],
   'fog-pie': [{ x: 3, y: 5, type: 'bait' }],
   'morning-mist': [{ x: 3, y: 5, type: 'flare' }, { x: 5, y: 3, type: 'flare' }],
-  'the-long-night': [{ x: 3, y: 1, type: 'basic' }],
+  'the-long-night': [{ x: 2, y: 5, type: 'flare' }, { x: 5, y: 4, type: 'basic' }],
 };
 
 describe('handcrafted levels', () => {

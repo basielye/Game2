@@ -16,10 +16,21 @@ export interface PlanCost {
   legSteps: number[];
 }
 
+const distCache = new WeakMap<Level, Map<number, Int16Array>>();
+
+/** Keeper walking distance from every tile to `to` (cached per level; levels are immutable). */
+export function keeperDist(level: Level, to: number): Int16Array {
+  let m = distCache.get(level);
+  if (!m) distCache.set(level, (m = new Map()));
+  let d = m.get(to);
+  if (!d) m.set(to, (d = bfs(level, [to], (i) => isKeeperWalkable(level.tiles[i]))));
+  return d;
+}
+
 /** Shortest Keeper walk between two tiles (inclusive), or null if unreachable. */
 export function keeperLeg(level: Level, from: number, to: number): number[] | null {
   if (from === to) return [from];
-  const dist = bfs(level, [to], (i) => isKeeperWalkable(level.tiles[i]));
+  const dist = keeperDist(level, to);
   if (dist[from] < 0) return null;
   // Walk downhill from `from` to `to`, preferring neighbours in N/E/S/W order for stability.
   const path = [from];
@@ -77,8 +88,7 @@ export function bestOrder(level: Level, plan: Plan): Plan {
   const ps = plan.placements;
   if (ps.length < 2) return plan;
   const nodes = [level.keeper, ...ps.map((p) => p.y * level.w + p.x)];
-  const pass = (i: number) => isKeeperWalkable(level.tiles[i]);
-  const dist = nodes.map((n) => bfs(level, [n], pass));
+  const dist = nodes.map((n) => keeperDist(level, n));
   const d = (a: number, b: number) => {
     const v = dist[a][nodes[b]];
     return v < 0 ? 1e6 : v;
