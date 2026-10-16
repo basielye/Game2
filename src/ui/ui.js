@@ -61,6 +61,39 @@ export class UI {
     this.dialogQ = null;
   }
 
+  // ---- gamepad menu navigation ----
+  visibleButtons() {
+    const scr = this.root.querySelector('.screen.show');
+    if (!scr) return [];
+    return [...scr.querySelectorAll('button:not([disabled]), select, input')].filter((b) => b.offsetParent !== null);
+  }
+  navFocus(dx, dy) {
+    const list = this.visibleButtons();
+    if (!list.length) return;
+    let i = list.indexOf(document.activeElement);
+    if (i < 0) { list[0].focus(); return; }
+    const el = list[i];
+    if (dx && el.tagName === 'INPUT' && el.type === 'range') { el.value = +el.value + dx * (+el.step || 0.1); el.dispatchEvent(new Event('input', { bubbles: true })); return; }
+    if (dx && el.tagName === 'SELECT') { el.selectedIndex = Math.max(0, Math.min(el.options.length - 1, el.selectedIndex + dx)); el.dispatchEvent(new Event('change', { bubbles: true })); return; }
+    if (dx && el.closest('.ptabs')) { const tabs = [...this.root.querySelectorAll('.ptabs button')]; const t = tabs[(tabs.indexOf(el) + dx + tabs.length) % tabs.length]; t.click(); t.focus(); return; }
+    i = (i + (dy || dx) + list.length) % list.length;
+    list[i].focus();
+    list[i].scrollIntoView?.({ block: 'nearest' });
+    this.game.audio.ui('click');
+  }
+  selectFocus() {
+    const el = document.activeElement;
+    if (el && el.tagName === 'INPUT' && el.type === 'checkbox') { el.checked = !el.checked; el.dispatchEvent(new Event('change', { bubbles: true })); return; }
+    if (el && el.tagName === 'BUTTON') el.click();
+    else { const l = this.visibleButtons(); l[0]?.focus(); }
+  }
+  back() {
+    const G = this.game;
+    if (this.state === 'pause') G.resume();
+    else if (this.state === 'panel') this.root.querySelector('.pclose button')?.click();
+    else if (this.dialogActive()) this.advanceDialog();
+  }
+
   loading(p, text) { $('#loading .lbar div', this.root).style.width = `${Math.round(p * 100)}%`; if (text) $('#loading .ltext', this.root).textContent = text; }
 
   screen(id) {
@@ -255,7 +288,7 @@ export class UI {
 
   controlsHTML() {
     const rows = [['W A S D', 'Move'], ['Shift', 'Sprint / gallop'], ['C', 'Crouch (stealth)'], ['Space', 'Jump'], ['Right Mouse', 'Aim'], ['Left Mouse', 'Fire / draw bow / swing'], ['Q (while aiming)', 'Dead Eye — mark targets, click to unleash'], ['R', 'Reload'], ['1 – 4 / Wheel', 'Switch weapon'], ['T', 'Toggle venom arrows'], ['E', 'Interact / gather / talk / loot (hold to tame)'], ['F', 'Mount / dismount'], ['H', 'Whistle for your mount'], ['L', 'Toggle lantern'], ['G', 'Eat food'], ['B', 'Use bandage'], ['X (hold)', 'Walk slowly'], ['Tab', 'Satchel & crafting'], ['M', 'Map'], ['J', 'Journal'], ['Esc', 'Pause']];
-    return `<div class="controls"><h3>Controls</h3>${rows.map(([k, v]) => `<div class="cr"><kbd>${k}</kbd><span>${v}</span></div>`).join('')}</div>`;
+    return `<div class="controls"><h3>Controls</h3>${rows.map(([k, v]) => `<div class="cr"><kbd>${k}</kbd><span>${v}</span></div>`).join('')}<h3>Gamepad</h3><div class="cr"><kbd>Sticks</kbd><span>Move / look · L3 sprint · R3 Dead Eye</span></div><div class="cr"><kbd>LT / RT</kbd><span>Aim / fire</span></div><div class="cr"><kbd>A B X Y</kbd><span>Jump · crouch · interact & reload · mount</span></div><div class="cr"><kbd>LB / RB</kbd><span>Switch weapon</span></div><div class="cr"><kbd>D-pad</kbd><span>Whistle · bandage · eat · lantern</span></div><div class="cr"><kbd>View / Menu</kbd><span>Satchel / pause</span></div></div>`;
   }
   creditsHTML() {
     return `<div class="credits"><h3>${TITLE}</h3><p>${SUBTITLE}</p><p>Design, code, world, creatures, music & sound — generated procedurally at runtime.<br>Engine: three.js · WebGL2 · WebAudio</p><p>No image, model or audio files: every tree, dinosaur and guitar note is synthesized on your machine.</p><p class="small">"Jurassic Park" is a trademark of Universal City Studios LLC and Amblin Entertainment. This is an unofficial fan project. Rename the park via <code>src/data/story.js</code> for commercial release.</p></div>`;

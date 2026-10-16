@@ -127,7 +127,12 @@ class Game {
       renderer.compile(this.scene, this.camera);
     });
     addEventListener('resize', () => this.onResize());
-    this.input.onUnlock = () => { if (this.state === 'game' && !this.ui.dialogActive()) this.pause(); };
+    this.input.onUnlock = () => { if (this.state === 'game' && !this.ui.dialogActive() && !this.input.padActive) this.pause(); };
+    this.input.onVirtualKey = (code) => this.onKey({ code });
+    this.input.onMenuNav = (dx, dy) => this.ui.navFocus(dx, dy);
+    this.input.onMenuSelect = () => this.ui.selectFocus();
+    this.input.onMenuBack = () => this.ui.back();
+    canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.state = 'paused'; document.body.insertAdjacentHTML('beforeend', '<div id="ctxlost" style="position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.85);color:#f3e2b0;font:22px Georgia;text-align:center">The graphics device was reset.<br><small>Your progress is saved. Reload the page to continue.</small></div>'); this.save(); });
     canvas.addEventListener('click', () => { if (this.state === 'game') this.input.lock(); });
     document.addEventListener('pointerdown', () => this.audio.init(), { once: false });
     addEventListener('keydown', (e) => this.onKey(e));
@@ -610,6 +615,7 @@ class Game {
   loop() {
     requestAnimationFrame(() => this.loop());
     const realDt = Math.min(0.05, this.clock.getDelta());
+    this.input.pollGamepad(realDt, this.state !== 'game' && this.state !== 'dead' ? true : this.state === 'dead');
     this.frame++;
     this._fps = (this._fps || 60) * 0.95 + (1 / Math.max(realDt, 1e-4)) * 0.05;
     if (this.settings.showFps && this.frame % 15 === 0) this.hud.el.querySelector('#fps').textContent = `${Math.round(this._fps)} fps · ${this.renderer.info.render.calls} draws · ${(this.renderer.info.render.triangles / 1000).toFixed(0)}k tris`;
@@ -730,7 +736,7 @@ class Game {
     this.post.u.uDeadEye.value = damp(this.post.u.uDeadEye.value, P.deadEye ? 1 : 0, 8, realDt);
     this.post.u.uDamage.value = Math.max(this.hud.dmgT * 0.8, P.hp / P.maxHp < 0.3 ? 0.4 : 0);
     this.hud.update(realDt);
-    this.hud.el.querySelector('#clickhint').style.display = this.input.locked || this.ui.dialogActive() || !P.alive ? 'none' : 'block';
+    this.hud.el.querySelector('#clickhint').style.display = this.input.locked || this.input.padActive || this.ui.dialogActive() || !P.alive ? 'none' : 'block';
     this.adaptResolution(realDt);
     this.checkSightings(realDt);
     if (this.slowmoT > 0) { this.slowmoT -= realDt; if (this.slowmoT <= 0 && !P.deadEye) this.timeScale = 1; }
