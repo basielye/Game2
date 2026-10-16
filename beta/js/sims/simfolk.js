@@ -200,6 +200,15 @@ const Simfolk = (() => {
     if (blink) { ctx.fillRect(-5, hy - 1, 3, 1.2); ctx.fillRect(2, hy - 1, 3, 1.2); }
     else { ctx.beginPath(); ctx.ellipse(-3.6, hy - .8, 1.4, 1.8, 0, 0, 7); ctx.ellipse(3.6, hy - .8, 1.4, 1.8, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(-3.4, hy - 1.8, .8, .8); ctx.fillRect(3.8, hy - 1.8, .8, .8); }
     ctx.strokeStyle = U.shade(s.hairColor, .1); ctx.lineWidth = 1.1; ctx.beginPath(); ctx.moveTo(-5.5, hy - 4.4 - (m < 30 ? -.8 : 0)); ctx.lineTo(-2, hy - 4.8); ctx.moveTo(5.5, hy - 4.4 - (m < 30 ? -.8 : 0)); ctx.lineTo(2, hy - 4.8); ctx.stroke();
+    if (s.beard) {
+      const bc = U.shade(s.hairColor, -.15);
+      ctx.save(); ctx.globalAlpha = s.beard === 'stubble' ? .38 : .95; ctx.fillStyle = bc;
+      ctx.beginPath(); ctx.moveTo(-9.6, hy); ctx.quadraticCurveTo(-9.4, hy + 11, 0, hy + 12.8); ctx.quadraticCurveTo(9.4, hy + 11, 9.6, hy);
+      ctx.lineTo(7.5, hy + 2); ctx.quadraticCurveTo(6, hy + 8.5, 0, hy + 8.2); ctx.quadraticCurveTo(-6, hy + 8.5, -7.5, hy + 2); ctx.closePath(); ctx.fill();
+      if (s.beard === 'beard') { ctx.beginPath(); ctx.ellipse(0, hy + 3.6, 4.6, 1.5, 0, 0, 7); ctx.fill(); }
+      else for (let i = 0; i < 14; i++) { ctx.fillRect(-6 + (i * 37 % 12), hy + 3 + (i * 13 % 5), .9, .9); }
+      ctx.restore();
+    }
     ctx.strokeStyle = '#8a3a2a'; ctx.lineWidth = 1.2; ctx.beginPath();
     if (anim === 'talk' || anim === 'eat') { ctx.fillStyle = '#7a2a22'; ctx.ellipse(0, hy + 5, 2, 1 + Math.abs(Math.sin(t * 9)) * 1.6, 0, 0, 7); ctx.fill(); }
     else if (m > 55) { ctx.arc(0, hy + 3, 3.2, .3, Math.PI - .3); ctx.stroke(); }

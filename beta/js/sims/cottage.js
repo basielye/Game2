@@ -649,7 +649,7 @@ const Cottage = (() => {
   }
 
   /* ───────────── Create-a-Sim ───────────── */
-  let casIdx = 0, casSims = null;
+  let casIdx = 0, casSims = null, casPhoto = null;
   function openCAS(firstTime) {
     g.casOpen = true; casSims = g.sims.map(s => JSON.parse(JSON.stringify(s))); casIdx = Math.max(0, casSims.findIndex(s => s.id === g.sel));
     $('#cas').classList.add('open'); $('#cas').dataset.first = firstTime ? 1 : '';
@@ -663,16 +663,18 @@ const Cottage = (() => {
       <header><h2>${host.dataset.first ? 'Welcome to the Keeper’s Cottage' : 'Create a Sim'}</h2><p>${host.dataset.first ? 'Meet your household. Change anything you like, then move in.' : 'Edit your household.'}</p></header>
       <div class="cas-body">
         <aside class="cas-house">${casSims.map((x, i) => `<button class="cas-mem${i === casIdx ? ' on' : ''}" data-mem="${i}"><canvas width="72" height="72"></canvas><span>${first(x)}</span></button>`).join('')}${casSims.length < 4 ? `<button class="cas-mem add" id="casAdd"><b>+</b><span>Add Sim</span></button>` : ''}</aside>
-        <div class="cas-stage"><canvas id="casCv" width="360" height="420"></canvas><div class="cas-stage-btns"><button class="ct-btn sm" id="casRand">🎲 Randomize</button>${casSims.length > 1 ? `<button class="ct-btn sm warn" id="casDel">Remove</button>` : ''}</div></div>
+        <div class="cas-stage"><canvas id="casCv" width="360" height="420"></canvas>${casPhoto ? `<div class="cas-photo" id="casPhotoCard"><div class="cas-photo-th"></div><p><b>${casPhoto.found ? 'Made from your photo' : 'No clear face found'}</b>${casPhoto.found ? 'Skin, hair, facial hair and clothes were matched.' : 'We made a best guess.'} <button class="link" id="casPhotoEdit">Adjust</button></p><button class="cas-photo-x" id="casPhotoX" aria-label="Dismiss">✕</button></div>` : ''}
+          <div class="cas-stage-btns"><label class="ct-btn sm photo" for="casFile">📷 From photo</label><input type="file" id="casFile" accept="image/*" hidden><button class="ct-btn sm" id="casRand">🎲 Randomize</button>${casSims.length > 1 ? `<button class="ct-btn sm warn" id="casDel">Remove</button>` : ''}</div></div>
         <div class="cas-form">
           <label>Name<input id="casName" maxlength="28" value="${s.name.replace(/"/g, '&quot;')}"></label>
           <h4>Age</h4>${ch('age', Simfolk.AGES, ['Young Adult', 'Adult', 'Elder'])}
           <h4>Body</h4>${ch('body', Simfolk.BODIES, ['Slim', 'Average', 'Broad'])}
-          <h4>Skin tone</h4>${sw('skin', Simfolk.SKIN)}
+          <h4>Skin tone</h4>${sw('skin', Simfolk.SKIN.includes(s.skin) ? Simfolk.SKIN : Simfolk.SKIN.concat(s.skin))}
           <h4>Hairstyle</h4>${ch('hair', Simfolk.HAIR, ['Short', 'Pixie', 'Long', 'Bun', 'Curly', 'Ponytail', 'Buzz', 'Bald'])}
-          <h4>Hair colour</h4>${sw('hairColor', Simfolk.HAIRC)}
+          <h4>Hair colour</h4>${sw('hairColor', Simfolk.HAIRC.includes(s.hairColor) ? Simfolk.HAIRC : Simfolk.HAIRC.concat(s.hairColor))}
+          <h4>Facial hair</h4><div class="cas-chips">${[[null, 'None'], ['stubble', 'Stubble'], ['beard', 'Beard']].map(([v, n]) => `<button class="${(s.beard || null) === v ? 'on' : ''}" data-beard="${v || ''}">${n}</button>`).join('')}</div>
           <h4>Outfit</h4>${ch('top', Simfolk.TOPS, ['T-shirt', 'Sweater', 'Dress', 'Overalls', 'Blazer', 'Apron'])}
-          <h4>Top colour</h4>${sw('topColor', Simfolk.CLOTH)}
+          <h4>Top colour</h4>${sw('topColor', Simfolk.CLOTH.includes(s.topColor) ? Simfolk.CLOTH : Simfolk.CLOTH.concat(s.topColor))}
           <h4>Trousers & skirt colour</h4>${sw('bottomColor', Simfolk.CLOTH)}
           <h4>Traits <small>(pick 3)</small></h4><div class="cas-traits">${TRAITS.map(t => `<button class="${s.traits.includes(t.id) ? 'on' : ''}" data-trait="${t.id}" title="${t.desc}"><span>${t.icon}</span>${t.name}</button>`).join('')}</div>
           <h4>Aspiration</h4><div class="cas-asp">${ASPIRATIONS.map(a => `<button class="${s.aspiration === a.id ? 'on' : ''}" data-asp="${a.id}"><span>${a.icon}</span><b>${a.name}</b><small>${a.desc}</small></button>`).join('')}</div>
@@ -680,7 +682,7 @@ const Cottage = (() => {
       </div>
       <footer><button class="ct-btn ghost" id="casCancel">${host.dataset.first ? 'Use as is' : 'Cancel'}</button><button class="ct-btn" id="casDone">${host.dataset.first ? 'Move In' : 'Save household'}</button></footer></div>`;
     host.querySelectorAll('.cas-mem canvas').forEach((c, i) => portrait(c, casSims[i]));
-    host.querySelectorAll('[data-mem]').forEach(b => b.onclick = () => { casIdx = +b.dataset.mem; renderCAS(); });
+    host.querySelectorAll('[data-mem]').forEach(b => b.onclick = () => { casIdx = +b.dataset.mem; dropPhoto(); renderCAS(); });
     host.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { s[b.dataset.k] = b.dataset.v; Sfx.tap(); renderCAS(); });
     host.querySelectorAll('[data-trait]').forEach(b => b.onclick = () => {
       const t = b.dataset.trait, i = s.traits.indexOf(t);
@@ -689,6 +691,16 @@ const Cottage = (() => {
     });
     host.querySelectorAll('[data-asp]').forEach(b => b.onclick = () => { s.aspiration = b.dataset.asp; Sfx.tap(); renderCAS(); });
     $('#casName').oninput = e => { s.name = e.target.value || 'Unnamed Sim'; host.querySelector('.cas-mem.on span').textContent = first(s); };
+    host.querySelectorAll('[data-beard]').forEach(b => b.onclick = () => { s.beard = b.dataset.beard || null; Sfx.tap(); renderCAS(); });
+    $('#casFile').onchange = async e => {
+      const f = e.target.files && e.target.files[0]; if (!f) return;
+      try {
+        const r = await PhotoSim.fromFile(f);
+        e.target.value = '';
+        applyPhoto(s, r); casPhoto = r; Sfx.sparkle(); renderCAS(); openPhotoEditor(s);
+      } catch (err) { toast(err.message || 'Could not read that photo.'); }
+    };
+    if (casPhoto) { $('#casPhotoCard .cas-photo-th').appendChild(PhotoSim.preview(casPhoto, 96)); $('#casPhotoX').onclick = () => { dropPhoto(); renderCAS(); }; $('#casPhotoEdit').onclick = () => openPhotoEditor(s); }
     $('#casRand').onclick = () => { const r = Simfolk.create({ last: s.name.split(' ').slice(1).join(' ') || 'Thorne' }); Object.assign(s, { name: r.name, age: Simfolk.AGES[Math.floor(Math.random() * 3)], body: r.body, skin: r.skin, hair: r.hair, hairColor: r.hairColor, top: r.top, topColor: r.topColor, bottomColor: r.bottomColor, traits: r.traits, aspiration: r.aspiration }); Sfx.sparkle(); renderCAS(); };
     const del = $('#casDel'); if (del) del.onclick = () => { casSims.splice(casIdx, 1); casIdx = 0; renderCAS(); };
     const add = $('#casAdd'); if (add) add.onclick = () => { const n = Simfolk.create({ last: casSims[0].name.split(' ').slice(1).join(' ') || 'Thorne', x: 7.5, y: 11.5 }); casSims.forEach(o => { n.rel[o.id] = 20; o.rel[n.id] = 20; }); casSims.push(n); casIdx = casSims.length - 1; Sfx.sparkle(); renderCAS(); };
@@ -708,16 +720,69 @@ const Cottage = (() => {
     };
     renderCAS.raf = requestAnimationFrame(frame);
   }
+  /* ───── photo → Sim ───── */
+  function applyPhoto(s, r) {
+    Object.assign(s, { skin: r.skin, hairColor: r.hairColor, hair: r.hair, beard: r.beard, age: r.age });
+    if (r.topColor) s.topColor = r.topColor;
+  }
+  function dropPhoto() { if (casPhoto && casPhoto.url) URL.revokeObjectURL(casPhoto.url); casPhoto = null; }
+  function openPhotoEditor(s) {
+    const r0 = casPhoto; if (!r0) return;
+    let box = r0.debug.box.slice(), hair = r0.picked, pick = false, res = r0;
+    const ed = document.createElement('div'); ed.className = 'photo-ed';
+    ed.innerHTML = `<div class="photo-ed-card"><h3>Match your photo</h3><p>Drag the circle onto the face and resize it. Tap <b>Pick hair colour</b>, then tap the hair, if the colour looks off. Your photo stays on this device and is not saved.</p>
+      <div class="photo-ed-body"><div class="photo-ed-pic"><canvas id="peCv"></canvas></div><div class="photo-ed-side"><canvas id="peSim" width="200" height="240"></canvas>
+      <label>Face size<input type="range" id="peSize" min="8" max="90" value="${Math.round(box[2] * 100)}"></label>
+      <button class="ct-btn sm ghost" id="pePick">💧 Pick hair colour</button><div class="pe-info" id="peInfo"></div></div></div>
+      <footer><button class="ct-btn ghost" id="peReset">Reset</button><button class="ct-btn" id="peDone">Done</button></footer></div>`;
+    $('#cas').appendChild(ed);
+    const src = r0.debug.cv, cv = ed.querySelector('#peCv'), x = cv.getContext('2d');
+    const maxW = Math.min(440, innerWidth - 60), maxH = Math.min(420, innerHeight * .45), sc = Math.min(maxW / src.width, maxH / src.height);
+    cv.width = Math.round(src.width * sc); cv.height = Math.round(src.height * sc);
+    const simCv = ed.querySelector('#peSim'), sx = simCv.getContext('2d');
+    const aspect = r0.debug.box[3] / r0.debug.box[2];
+    function rerun() {
+      res = PhotoSim.analyze(r0.img, { crop: r0.crop, box, hair });
+      res.img = r0.img; res.url = r0.url; res.crop = r0.crop; res.picked = hair;
+      applyPhoto(s, res); draw();
+    }
+    function draw() {
+      x.drawImage(src, 0, 0, cv.width, cv.height);
+      const [bx, by, bw, bh] = box;
+      x.save(); x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(0, 0, cv.width, cv.height);
+      x.globalCompositeOperation = 'destination-out'; x.beginPath(); x.ellipse((bx + bw / 2) * cv.width, (by + bh / 2) * cv.height, bw / 2 * cv.width, bh / 2 * cv.height, 0, 0, 7); x.fill(); x.restore();
+      x.strokeStyle = '#7cff8c'; x.lineWidth = 2.5; x.setLineDash([6, 4]); x.beginPath(); x.ellipse((bx + bw / 2) * cv.width, (by + bh / 2) * cv.height, bw / 2 * cv.width, bh / 2 * cv.height, 0, 0, 7); x.stroke(); x.setLineDash([]);
+      sx.clearRect(0, 0, 200, 240); const g2 = sx.createRadialGradient(100, 150, 10, 100, 130, 140); g2.addColorStop(0, '#fff8e6'); g2.addColorStop(1, '#e6dcc0'); sx.fillStyle = g2; sx.fillRect(0, 0, 200, 240);
+      Simfolk.drawSim(sx, s, 100, 228, 2.6, performance.now() / 1000, { anim: 'stand', front: true, mood: 80 });
+      ed.querySelector('#peInfo').innerHTML = `<span style="background:${s.skin}"></span>Skin <span style="background:${s.hairColor}"></span>Hair: ${s.hair}${s.beard ? ' · ' + s.beard : ''}${s.age === 'elder' ? ' · elder' : ''}`;
+      ed.querySelector('#pePick').classList.toggle('on', pick); cv.style.cursor = pick ? 'crosshair' : 'move';
+    }
+    let drag = null;
+    const pos = e => { const b = cv.getBoundingClientRect(); return [(e.clientX - b.left) / b.width, (e.clientY - b.top) / b.height]; };
+    cv.onpointerdown = e => {
+      const [px, py] = pos(e);
+      if (pick) { hair = PhotoSim.pixel(r0, px, py); pick = false; Sfx.tap(); rerun(); return; }
+      drag = { px, py, b: box.slice() }; cv.setPointerCapture(e.pointerId);
+    };
+    cv.onpointermove = e => { if (!drag) return; const [px, py] = pos(e); box[0] = U.clamp(drag.b[0] + px - drag.px, -box[2] / 2, 1 - box[2] / 2); box[1] = U.clamp(drag.b[1] + py - drag.py, -box[3] / 2, 1 - box[3] / 2); draw(); };
+    cv.onpointerup = () => { if (drag) { drag = null; rerun(); } };
+    ed.querySelector('#peSize').oninput = e => { const cxm = box[0] + box[2] / 2, cym = box[1] + box[3] / 2, w = e.target.value / 100, h = w * aspect * cv.width / cv.height * (cv.height / cv.width); box = [cxm - w / 2, cym - h / 2, w, h]; draw(); };
+    ed.querySelector('#peSize').onchange = rerun;
+    ed.querySelector('#pePick').onclick = () => { pick = !pick; draw(); };
+    ed.querySelector('#peReset').onclick = () => { box = r0.debug.box.slice(); hair = null; rerun(); };
+    ed.querySelector('#peDone').onclick = () => { res.debug.box = box.slice(); casPhoto = Object.assign(res, { img: r0.img, url: r0.url }); ed.remove(); Sfx.sparkle(); renderCAS(); };
+    draw();
+  }
   function closeCAS(apply) {
     if (apply) {
       const old = g.sims;
-      g.sims = casSims.map(n => { const o = old.find(x => x.id === n.id); return o ? Object.assign(o, { name: n.name, age: n.age, body: n.body, skin: n.skin, hair: n.hair, hairColor: n.hairColor, top: n.top, topColor: n.topColor, bottomColor: n.bottomColor, traits: n.traits, aspiration: n.aspiration }) : n; });
+      g.sims = casSims.map(n => { const o = old.find(x => x.id === n.id); return o ? Object.assign(o, { name: n.name, age: n.age, body: n.body, skin: n.skin, hair: n.hair, beard: n.beard || null, hairColor: n.hairColor, top: n.top, topColor: n.topColor, bottomColor: n.bottomColor, traits: n.traits, aspiration: n.aspiration }) : n; });
       if (!g.sims.find(s => s.id === g.sel)) g.sel = g.sims[0].id;
       g.reserved = {}; g.sims.forEach(s => { if (!old.includes(s)) { s.x = 7.5; s.y = 11.5; } });
       save();
     }
     const firstMove = !g.cas;
-    g.cas = true; g.casOpen = false; $('#cas').classList.remove('open'); renderPanel(true);
+    dropPhoto(); g.cas = true; g.casOpen = false; $('#cas').classList.remove('open'); renderPanel(true);
     if (firstMove) {
       const tips = [
         ['Welcome home! Tap any object, like the fridge or the bed, to give your selected Sim something to do.', '🏡'],

@@ -3,7 +3,7 @@
 A copy of Leafscapes (the plant match-3 glasshouse game, unchanged) with a new life-simulation dimension.
 Open `beta/index.html`; the cottage is the green **Cottage** button on the home screen.
 
-- **Create-a-Sim**: household of up to 4 Sims. Pick name, age, body, skin, hairstyle and colour, outfit and colours,
+- **Create-a-Sim**: household of up to 4 Sims. **📷 From photo** builds a cartoon Sim from a photo (skin, hair colour and style, facial hair, clothing), with a manual face circle and hair-colour picker. The photo is analysed locally and never saved. Pick name, age, body, skin, hairstyle and colour, outfit and colours,
   3 of 12 traits and an aspiration.
 - **Live mode**:
   - Sims have 8 needs and moodlets, and free will (they decide for themselves using utility scoring).
