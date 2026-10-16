@@ -13,14 +13,16 @@ export class Human extends Entity {
     super(game);
     this.role = role;
     this.category = 'human';
-    this.faction = role === 'raider' || role === 'boss' ? 'raider' : 'haven';
-    const preset = opts.preset || (role === 'raider' ? (Math.random() < 0.25 ? 'raiderF' : 'raider') : role === 'boss' ? 'crane' : Math.random() < 0.5 ? 'settlerM' : 'settlerF');
+    this.faction = role === 'raider' || role === 'boss' ? 'raider' : role === 'infected' ? 'infected' : 'haven';
+    if (role === 'infected') this.category = 'infected';
+    const preset = opts.preset || (role === 'raider' ? (Math.random() < 0.25 ? 'raiderF' : 'raider') : role === 'boss' ? 'crane' : role === 'infected' ? (Math.random() < 0.35 ? 'infectedF' : 'infected') : Math.random() < 0.5 ? 'settlerM' : 'settlerF');
     const tint = (c) => new THREE.Color(c).offsetHSL(rand(-0.04, 0.04), rand(-0.1, 0.1), rand(-0.08, 0.08)).getHex();
     const over = opts.colors || (role === 'settler' || role === 'guard' ? { top: tint(pick([0x8a7a5a, 0x6a3a2a, 0x4a5a6a, 0x7a6a3a, 0x9a8a7a])), pants: tint(pick([0x4a4a52, 0x5a4a3a, 0x3a3228])) } : {});
     this.rig = buildHuman(preset, over);
     this.group.add(this.rig.mesh);
     this.name = opts.name || `${pick(FIRST)} ${pick(LAST)}`;
-    this.maxHp = this.hp = role === 'boss' ? 420 : role === 'raider' ? 70 : 80;
+    this.maxHp = this.hp = role === 'boss' ? 420 : role === 'raider' ? 70 : role === 'infected' ? 140 : 80;
+    if (role === 'infected') { this.rig.anim.zombie = 1; this.state = 'wander'; this.groanT = rand(2, 8); }
     this.radius = 0.35;
     this.height = 1.8;
     this.pos.set(x, game.terrain.getHeight(x, z), z);
@@ -50,7 +52,8 @@ export class Human extends Entity {
       this.rig.bones.handR.add(m); this.gunMesh = m;
       this.rig.anim.weapon = this.gun;
     }
-    this.hitSpheres.push({ obj: this.rig.bones.chest, r: 0.3, mult: 1, name: 'body' }, { obj: this.rig.bones.head, local: new THREE.Vector3(0, 0.1, 0), r: 0.13, mult: 2.5, name: 'head' }, { obj: this.rig.bones.hips, r: 0.28, mult: 0.9, name: 'hips' });
+    const inf = role === 'infected';
+    this.hitSpheres.push({ obj: this.rig.bones.chest, r: 0.3, mult: inf ? 0.45 : 1, name: 'body' }, { obj: this.rig.bones.head, local: new THREE.Vector3(0, 0.1, 0), r: 0.13, mult: inf ? 5 : 2.5, name: 'head' }, { obj: this.rig.bones.hips, r: 0.28, mult: inf ? 0.4 : 0.9, name: 'hips' });
     this.group.position.copy(this.pos);
     this.waypoints = opts.waypoints || null;
     this.wpI = 0;
@@ -197,7 +200,7 @@ export class Human extends Entity {
       // predators threatening the camp
       if (this.state !== 'combat' || (this.target && this.target.category !== 'player')) {
         for (const e of G.entities) {
-          if (e.kind === 'dino' && e.alive && e.faction === 'pred' && e.pos.distanceTo(this.pos) < 30 && !e.tamed) {
+          if (((e.kind === 'dino' && e.faction === 'pred' && !e.tamed) || e.faction === 'infected') && e.alive && e.pos.distanceTo(this.pos) < 30) {
             this.target = e; this.setState('combat'); this.awareness = 1; break;
           }
         }
@@ -210,16 +213,33 @@ export class Human extends Entity {
       }
       if (this.state === 'search' && this.stateT > 25) { this.awareness = 0.3; this.setState('patrol'); }
       if (this.state === 'investigate' && this.stateT > 14) { this.awareness *= 0.5; this.setState('patrol'); }
+    } else if (this.role === 'infected') {
+      // hunt the nearest living thing that isn't infected
+      if (!this.target || !this.target.alive || this.pos.distanceTo(this.target.pos) > 60) {
+        this.target = null;
+        let best = null, bd = G.atmo.isNight() ? 38 : 24;
+        for (const e of G.entities) {
+          if (!e.alive || e === this || e.faction === 'infected' || e.flyer) continue;
+          if (e.kind === 'dino' && e.def.size > 1.6) continue;
+          if (e === p && (p.godMode || (p.crouching && this.pos.distanceTo(p.pos) > 10))) continue;
+          const d = this.pos.distanceTo(e.pos);
+          if (d < bd) { bd = d; best = e; }
+        }
+        this.target = best;
+      }
+      this.setState(this.target ? 'combat' : 'wander');
+      this.groanT -= 0.2;
+      if (this.groanT <= 0) { this.groanT = rand(3, 9); G.audio?.human('groan', this.pos, this.rig.female); }
     } else if (this.role === 'guard') {
       this.target = null;
       for (const e of G.entities) {
         if (e.kind === 'dino' && e.alive && e.faction === 'pred' && !e.tamed && e.pos.distanceTo(this.pos) < 70 && this.canSee(e, 70)) { this.target = e; break; }
-        if (e.kind === 'human' && e.alive && e.faction === 'raider' && e.pos.distanceTo(this.pos) < 60 && this.canSee(e, 60)) { this.target = e; break; }
+        if (e.kind === 'human' && e.alive && (e.faction === 'raider' || e.faction === 'infected') && e.pos.distanceTo(this.pos) < 60 && this.canSee(e, 60)) { this.target = e; break; }
       }
       this.setState(this.target ? 'combat' : 'stand');
     } else if (this.role === 'settler') {
       // flee from predators
-      for (const e of G.entities) if (e.kind === 'dino' && e.alive && e.faction === 'pred' && e.pos.distanceTo(this.pos) < 25) { this.fleeFrom = e; this.setState('flee'); break; }
+      for (const e of G.entities) if (((e.kind === 'dino' && e.faction === 'pred') || e.faction === 'infected') && e.alive && e.pos.distanceTo(this.pos) < 25) { this.fleeFrom = e; this.setState('flee'); break; }
       if (this.state === 'flee' && this.stateT > 8) this.setState('wander');
       const night = G.atmo.isNight();
       if (night && this.state === 'wander' && this.nightSpot) this.setState('sit');
@@ -241,6 +261,7 @@ export class Human extends Entity {
         if (this.nightSpot) { this.desired = this.nightSpot; this.desiredSpeed = this.pos.distanceTo(this.nightSpot) > 1 ? 1.4 : 0; }
         break;
       case 'wander': case 'patrol': {
+        if (this.role === 'infected' && this.desiredSpeed > 0) this.desiredSpeed = 0.9;
         if (this.waypoints) {
           const wp = this.waypoints[this.wpI % this.waypoints.length];
           this.desired = wp; this.desiredSpeed = 1.4;
@@ -279,6 +300,17 @@ export class Human extends Entity {
         const t = this.target;
         if (!t) break;
         const d = this.pos.distanceTo(t.pos);
+        if (this.role === 'infected') {
+          this.desired = t.pos; this.desiredSpeed = d > 3 ? (G.atmo.isNight() ? 3.6 : 2.6) : 0.6;
+          this.fireT -= dt;
+          if (d < 1.7 && this.fireT <= 0) {
+            this.fireT = 1.3; this.rig.anim.lunge = 1;
+            t.damage(t === G.player ? 13 * ({ easy: 0.6, normal: 1, hard: 1.4 }[G.settings.difficulty] || 1) : 18, this, { type: 'bite', from: this.pos, knock: 1.5 });
+            G.fx?.blood(t.pos.clone().setY(t.pos.y + 1.3), 8);
+            G.audio?.human('groan', this.pos, this.rig.female);
+          }
+          break;
+        }
         const ideal = this.role === 'guard' ? 0 : this.gun === 'rifle' ? 22 : 13;
         if (this.role === 'guard' || this.perch) { this.desired = null; this.desiredSpeed = 0; }
         else {

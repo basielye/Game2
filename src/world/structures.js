@@ -648,7 +648,7 @@ export class Structures {
   buildShipwreck() {
     const L = locById.westbeach;
     const M = this.M;
-    const g = this.anchor(L.x - 30, L.z + 10, 0.8, -3);
+    const g = this.anchor(L.x - 62, L.z + 6, 0.8, -3);
     g.rotation.z = 0.25;
     const hull = new THREE.Mesh(new THREE.BoxGeometry(14, 12, 70), M.rust);
     hull.position.y = 4; hull.castShadow = true; hull.receiveShadow = true; g.add(hull);

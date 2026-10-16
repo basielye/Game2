@@ -28,10 +28,10 @@ function rawHeight(x, z) {
   land += 175 * Math.exp(-Math.pow(dv / 250, 1.7));
   land += noise.ridged(x * 0.012, z * 0.012, 3) * 10 * Math.exp(-Math.pow(dv / 300, 2));
 
-  // Brachiosaur lake basin
-  const lx = x + 290, lz = z + 230;
-  const dl = Math.sqrt(lx * lx * 1.3 + lz * lz);
-  land -= 34 * Math.exp(-Math.pow(dl / 120, 2.2));
+  // Brachiosaur lake: a broad flat-bottomed basin with gentle shores
+  const lx = x + 340, lz = z + 215;
+  const dl = Math.sqrt(lx * lx * 1.15 + lz * lz) + noise.noise2(x * 0.02, z * 0.02) * 14;
+  land = lerp(land, -2.6 + noise.noise2(x * 0.05, z * 0.05) * 0.8, 1 - smoothstep(60, 150, dl));
 
   // Southern lowlands are gentler
   const south = smoothstep(200, 700, z);

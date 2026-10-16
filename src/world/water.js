@@ -26,6 +26,8 @@ void main(){
   off += gerstner(p, vec2(-1.0, -0.2), 0.08, 6.0, uTime, tan, bin);
   // dampen waves far from camera to avoid aliasing
   float fade = 1.0 - smoothstep(250.0, 700.0, distance(wp.xz, cameraPosition.xz));
+  // inland lakes stay calm; open ocean gets full swell
+  fade *= 0.12 + 0.88 * smoothstep(520.0, 760.0, length(wp.xz));
   wp.xyz += off * fade;
   vFoamCrest = clamp(off.y * 1.6, 0.0, 1.0) * fade;
   vNormalW = normalize(mix(vec3(0,1,0), normalize(cross(bin, tan)), fade));

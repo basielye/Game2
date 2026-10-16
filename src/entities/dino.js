@@ -166,6 +166,7 @@ export class Dino extends Entity {
         if (e.faction === 'pred' && e.def && e.def.size >= d.size * 0.5) fear = d.sight * 0.7;
         if (e.category === 'player') fear = e.crouching ? 9 : e.sprinting || e.mounted ? 30 : 18;
         if (e.category === 'human' && e.faction === 'raider') fear = 20;
+        if (e.category === 'infected') fear = 14;
         if (d.gentle && e.kindName !== 'trex') fear = 0;
         if (e === this.rider) fear = 0;
         if (fear > 0 && dist < fear && dist < threatD) { threatD = dist; bestThreat = e; }

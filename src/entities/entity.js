@@ -3,12 +3,13 @@ import * as THREE from 'three';
 
 let nextId = 1;
 export const HOSTILE = {
-  player: { raider: true, pred: true },
-  haven: { raider: true, pred: true },
-  raider: { player: true, haven: true, pred: true },
-  pred: { player: true, haven: true, raider: true, herb: true, pred: false },
+  player: { raider: true, pred: true, infected: true },
+  haven: { raider: true, pred: true, infected: true },
+  raider: { player: true, haven: true, pred: true, infected: true },
+  pred: { player: true, haven: true, raider: true, herb: true, pred: false, infected: true },
   herb: {},
-  tamed: { pred: true, raider: true },
+  tamed: { pred: true, raider: true, infected: true },
+  infected: { player: true, haven: true, raider: true, herb: true, tamed: true },
 };
 
 export class Entity {

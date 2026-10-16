@@ -11,13 +11,13 @@ export const LOCATIONS = [
   { id: 'raptorpen', name: 'Raptor Pen (Black Fang Outpost)', x: -480, z: 120, r: 45, flat: 60, h: null, kind: 'outpost', desc: 'The Black Fang gang took the old raptor paddock.' },
   { id: 'geothermal', name: 'Geothermal Plant', x: 460, z: -140, r: 50, flat: 65, h: null, kind: 'outpost', desc: 'Power for the fences — if anyone can bring it back.' },
   { id: 'rexpaddock', name: 'Tyrannosaur Paddock', x: 380, z: 260, r: 90, flat: 0, h: null, kind: 'danger', desc: 'The fence is down. She hunts at dusk.' },
-  { id: 'lake', name: 'Brachiosaur Lake', x: -290, z: -230, r: 110, flat: 0, h: null, kind: 'landmark', desc: 'The gentle giants drink here every morning.' },
+  { id: 'lake', name: 'Brachiosaur Lake', x: -340, z: -215, r: 110, flat: 0, h: null, kind: 'landmark', desc: 'The gentle giants drink here every morning.' },
   { id: 'tower', name: 'Mount Sibo Radio Tower', x: -90, z: -640, r: 18, flat: 22, h: null, kind: 'landmark', desc: 'The highest point on the island. The antenna still hums.' },
   { id: 'aviary', name: 'The Aviary', x: 560, z: -520, r: 45, flat: 55, h: null, kind: 'danger', desc: 'A collapsed dome. Pteranodons nest in the wreckage.' },
   { id: 'cranecamp', name: "Crane's Hollow", x: -590, z: -470, r: 55, flat: 70, h: null, kind: 'outpost', desc: "Silas Crane's fortified camp. Nobody walks in uninvited." },
   { id: 'lodge', name: 'Safari Lodge', x: 620, z: 330, r: 30, flat: 40, h: null, kind: 'camp', desc: 'An abandoned lodge. Good place to sleep — if you lock the door.' },
   { id: 'hatchery', name: 'Hammond Creation Lab', x: 230, z: -10, r: 28, flat: 38, h: null, kind: 'landmark', desc: 'The lab where it all started. Incubators still warm.' },
-  { id: 'westbeach', name: 'Shipwreck Beach', x: -760, z: 300, r: 40, flat: 0, h: null, kind: 'landmark', desc: 'A rusted freighter, run aground the week the mainland fell.' },
+  { id: 'westbeach', name: 'Shipwreck Beach', x: -625, z: 300, r: 40, flat: 0, h: null, kind: 'landmark', desc: 'A rusted freighter, run aground the week the mainland fell.' },
 ];
 
 export const locById = Object.fromEntries(LOCATIONS.map((l) => [l.id, l]));
@@ -31,5 +31,5 @@ export const ROADS = [
   [[-60, 60], [-150, -60], [-220, -150], [-260, -340], [-180, -480], [-110, -600], [-90, -640]],
   [[-260, -340], [-420, -420], [-590, -470]],
   [[460, -140], [520, -300], [560, -520]],
-  [[-400, 120], [-600, 220], [-740, 290]],
+  [[-400, 120], [-540, 220], [-615, 295]],
 ];

@@ -157,6 +157,11 @@ export class Audio {
     const d = this._spatial(pos, 0.5, 60);
     if (!d) return;
     const t = this.now, base = female ? 260 : 140;
+    if (kind === 'groan') {
+      const o = this._osc(d, t, 1.4, { type: 'sawtooth', freq: base * 0.7, freqEnd: base * 0.45, gain: 0.16, attack: 0.25, detune: rand(-30, 30) });
+      this._noise(d, t, 1.3, { freq: 500, q: 2, gain: 0.25, attack: 0.3, freqEnd: 300 });
+      return;
+    }
     if (kind === 'die') this._osc(d, t, 0.7, { type: 'sawtooth', freq: base * 1.4, freqEnd: base * 0.6, gain: 0.12 });
     else if (kind === 'alert') { this._osc(d, t, 0.3, { type: 'sawtooth', freq: base * 1.2, freqEnd: base * 1.6, gain: 0.1 }); this._osc(d, t + 0.32, 0.25, { type: 'sawtooth', freq: base * 1.5, freqEnd: base * 1.1, gain: 0.1 }); }
     else this._osc(d, t, 0.2, { type: 'sawtooth', freq: base * 1.3, freqEnd: base, gain: 0.1 });

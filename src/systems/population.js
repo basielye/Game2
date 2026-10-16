@@ -66,7 +66,7 @@ export class Population {
     const L = locById.lake;
     const herd = { members: [] };
     for (let i = 0; i < 3; i++) {
-      const d = this.add(new Dino(G, 'brachio', L.x + rand(-40, 40) + 60, L.z + rand(-40, 40), { herd, persistent: true, homeX: L.x, homeZ: L.z, homeRadius: 150, scale: i === 0 ? 1.05 : rand(0.8, 1) }));
+      const d = this.add(new Dino(G, 'brachio', L.x + rand(-30, 30), L.z + rand(-30, 30), { herd, persistent: true, homeX: L.x, homeZ: L.z, homeRadius: 110, scale: i === 0 ? 1.05 : rand(0.8, 1) }));
       herd.members.push(d);
     }
     // pteranodon flocks
@@ -193,6 +193,7 @@ export class Population {
     this.spawnT -= dt;
     if (this.spawnT > 0) return;
     this.spawnT = 1.5;
+    this.updateInfected();
     // outposts come alive when the player approaches (Crane's Hollow waits for the story)
     for (const id of ['raptorpen', 'geothermal']) {
       const L = locById[id];
@@ -225,6 +226,44 @@ export class Population {
       if (this.biomeScore(kind, x, z) <= 0) continue;
       this.spawnHerd(kind, x, z);
       break;
+    }
+  }
+
+  // The Infected: the freighter brought the mainland plague ashore. They haunt Shipwreck Beach and roam the coasts at night.
+  updateInfected() {
+    const G = this.game, P = G.player, W = locById.westbeach;
+    const night = G.atmo.isNight();
+    const inf = G.entities.filter((e) => e.kind === 'human' && e.role === 'infected');
+    for (const e of inf) {
+      const d = e.pos.distanceTo(P.pos);
+      if (d > 460 || (!e.alive && e.stateT > 90 && d > 50)) this.remove(e);
+    }
+    const alive = inf.filter((e) => e.alive);
+    const dW = Math.hypot(P.pos.x - W.x, P.pos.z - W.z);
+    if (dW < 380) {
+      const near = alive.filter((e) => Math.hypot(e.pos.x - W.x, e.pos.z - W.z) < 140).length;
+      if (near < (night ? 10 : 5)) {
+        const a = rand(0, 6.28), r = rand(10, 70);
+        const x = W.x + Math.sin(a) * r, z = W.z + Math.cos(a) * r;
+        if (G.terrain.getHeight(x, z) > 0.3) this.add(new Human(G, 'infected', x, z, { homeX: W.x, homeZ: W.z, homeR: 70 }));
+      }
+    }
+    if (night && alive.length < 6 && Math.random() < 0.05 && !P.inSafeZone() && this.game.quests.qi >= 1) {
+      for (let k = 0; k < 6; k++) {
+        const a = rand(0, 6.28), r = rand(120, 220);
+        const x = P.pos.x + Math.sin(a) * r, z = P.pos.z + Math.cos(a) * r;
+        if (G.terrain.getHeight(x, z) < 1.5 || Math.hypot(x - locById.haven.x, z - locById.haven.z) < 110) continue;
+        for (let i = 0; i < randInt(2, 3); i++) this.add(new Human(G, 'infected', x + rand(-4, 4), z + rand(-4, 4), { homeX: x, homeZ: z, homeR: 40 }));
+        break;
+      }
+    }
+    if (!this.seenInfected) {
+      const s = alive.find((e) => e.pos.distanceTo(P.pos) < 35);
+      if (s) {
+        this.seenInfected = true;
+        G.ui.dialog([['Ava', 'No... not here. The freighter must have carried it ashore.'], ['Ava', 'Aim for the head. Nothing else stops them.']], null, true);
+        G.hud.toast('The Infected — only headshots stop them', 'danger');
+      }
     }
   }
 

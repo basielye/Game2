@@ -16,6 +16,8 @@ export const HUMAN_PRESETS = {
   settlerM: { female: false, skin: 0xd09a74, hair: 0x5a4030, top: 0x8a7a5a, pants: 0x4a4a52, boots: 0x3a2a1a, leather: 0x5a3a20, hat: 0x6a4a2a, beard: true, build: 1.1, height: 1.8 },
   settlerF: { female: true, skin: 0xa86e4c, hair: 0x1a120c, top: 0x9a5040, pants: 0x5a4a3a, boots: 0x2a1c12, leather: 0x4a2c1a, bun: true, build: 0.95, height: 1.68 },
   marshal: { female: false, skin: 0x8e5c3c, hair: 0x2a2a2a, top: 0x5a6a7a, pants: 0x3a3a3a, boots: 0x1a1210, leather: 0x3a2010, hat: 0x2a2018, beard: true, coat: 0x4a3828, build: 1.15, height: 1.86 },
+  infected: { female: false, skin: 0x7d8a76, hair: 0x2a2a22, top: 0x4a4038, pants: 0x2e3038, boots: 0x1a1612, leather: 0x2a2018, build: 0.95, height: 1.76, eyes: 0xd8e040 },
+  infectedF: { female: true, skin: 0x86907c, hair: 0x3a2a1a, top: 0x5a4a4a, pants: 0x34302c, boots: 0x1a1612, leather: 0x2a2018, build: 0.9, height: 1.66, eyes: 0xd8e040 },
   raider: { female: false, skin: 0xb07a58, hair: 0x2a1a10, top: 0x2a2a28, pants: 0x3a3228, boots: 0x1a1410, leather: 0x2a1a10, hat: 0x1e1a16, bandana: 0x8a1a12, build: 1.1, height: 1.8 },
   raiderF: { female: true, skin: 0xc08a68, hair: 0x6a2a14, top: 0x3a2a24, pants: 0x2a2620, boots: 0x1a1410, leather: 0x2a1a10, bandana: 0x8a1a12, braid: true, build: 1.0, height: 1.72 },
   crane: { female: false, skin: 0xd8a888, hair: 0x9a9a9a, top: 0x1a1a1a, pants: 0x2a2420, boots: 0x0e0a08, leather: 0x1a0e08, hat: 0x101010, coat: 0x3a1410, beard: true, build: 1.2, height: 1.9 },
@@ -109,7 +111,7 @@ export function buildHuman(presetName, overrides = {}) {
   const nose = ellipsoid(0.014 * s, 0.026 * s, 0.02 * s); nose.rotateX(-0.3); nose.translate(0, 0.085 * s, 0.1 * s); R.rigid(nose, head, skin);
   for (const sx of [-1, 1]) {
     const eyeW = ellipsoid(0.017 * s, 0.011 * s, 0.01 * s); eyeW.translate(sx * 0.035 * s, 0.112 * s, 0.092 * s); R.rigid(eyeW, head, 0xeeeae0);
-    const eye = new THREE.SphereGeometry(0.0085 * s, 8, 6); eye.translate(sx * 0.035 * s, 0.112 * s, 0.1 * s); R.rigid(eye, head, 0x2a1a0e);
+    const eye = new THREE.SphereGeometry((P.eyes ? 0.011 : 0.0085) * s, 8, 6); eye.translate(sx * 0.035 * s, 0.112 * s, 0.1 * s); R.rigid(eye, head, P.eyes || 0x2a1a0e);
     const brow = new THREE.BoxGeometry(0.035 * s, 0.007 * s, 0.01 * s); brow.rotateZ(sx * -0.15); brow.translate(sx * 0.036 * s, 0.132 * s, 0.098 * s); R.rigid(brow, head, hair.clone().multiplyScalar(0.8));
     const ear = ellipsoid(0.012 * s, 0.025 * s, 0.018 * s); ear.translate(sx * 0.092 * s, 0.1 * s, 0); R.rigid(ear, head, skin);
   }
@@ -142,7 +144,7 @@ export function buildHuman(presetName, overrides = {}) {
   const mesh = R.build(humanMaterial(), 1.4, new THREE.Vector3(0, 0.9, 0));
   const bones = R.byName;
   const rig = { mesh, bones, side, braid, s, female: f, preset: presetName };
-  rig.anim = { phase: 0, speed: 0, crouch: 0, aim: 0, aimPitch: 0, weapon: 'none', air: 0, swim: 0, mounted: 0, dead: 0, melee: -1, draw: 0, reload: 0, look: 0, lookPitch: 0, hurt: 0, t: 0, braidV: 0, sit: 0, wave: 0, lean: 0, interact: 0 };
+  rig.anim = { zombie: 0, phase: 0, speed: 0, crouch: 0, aim: 0, aimPitch: 0, weapon: 'none', air: 0, swim: 0, mounted: 0, dead: 0, melee: -1, draw: 0, reload: 0, look: 0, lookPitch: 0, hurt: 0, t: 0, braidV: 0, sit: 0, wave: 0, lean: 0, interact: 0 };
   return rig;
 }
 
@@ -209,6 +211,13 @@ export function animateHuman(rig, dt) {
     eL = lerp(eL, -0.3, a.swim); eR = lerp(eR, -0.3, a.swim);
   }
   // wave (greeting)
+  if (a.zombie > 0) {
+    const z = a.zombie, sw = Math.sin(a.t * 1.7) * 0.15;
+    aLx = lerp(aLx, -1.35 + sw, z); aRx = lerp(aRx, -1.2 - sw, z); aLz = lerp(aLz, 0.25, z); aRz = lerp(aRz, -0.3, z);
+    eL = lerp(eL, -0.35, z); eR = lerp(eR, -0.6, z);
+    setRot(B.head, 0.35 + Math.sin(a.t * 0.9) * 0.15, Math.sin(a.t * 0.6) * 0.3, 0.3 * z);
+    setRot(B.spine, 0.25 * z, 0, Math.sin(ph) * 0.12 * z);
+  }
   if (a.wave > 0) { aRx = lerp(aRx, -2.8, a.wave); aRz = lerp(aRz, -0.4, a.wave); eR = lerp(eR, -0.6 + Math.sin(a.t * 10) * 0.4, a.wave); }
   // interaction reach
   if (a.interact > 0) { aRx = lerp(aRx, -1.2, a.interact); eR = lerp(eR, -0.4, a.interact); aLx = lerp(aLx, -1.0, a.interact); eL = lerp(eL, -0.5, a.interact); }

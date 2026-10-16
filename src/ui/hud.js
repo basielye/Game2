@@ -278,7 +278,7 @@ export class HUD {
       const d = e.pos.distanceTo(P.pos);
       if (d > 80) continue;
       const [ex, ey] = worldToMap(e.pos.x, e.pos.z, map.width);
-      if (e.kind === 'human') c.fillStyle = e.faction === 'raider' ? (e.state === 'combat' ? '#ff3020' : '#d04030') : '#e8e0c8';
+      if (e.kind === 'human') c.fillStyle = e.faction === 'infected' ? '#a8e040' : e.faction === 'raider' ? (e.state === 'combat' ? '#ff3020' : '#d04030') : '#e8e0c8';
       else if (e.kind === 'dino') { if (e.faction === 'pred' && e.state !== 'chase' && d > 40 && !P.deadEye) continue; c.fillStyle = e.tamed ? '#60c0ff' : e.faction === 'pred' ? '#ff8030' : '#a0d070'; }
       c.beginPath(); c.arc(ex - mx, ey - my, e.kind === 'dino' ? 1.6 + (e.def?.size || 1) * 0.3 : 1.4, 0, 6.28); c.fill();
     }

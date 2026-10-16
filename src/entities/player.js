@@ -68,6 +68,21 @@ export class Player extends Entity {
     this.lastSafe = new THREE.Vector3();
     this.blind = 0;
     this.regenDelay = 0;
+    // oil lantern hanging from the belt (L)
+    this.lanternOn = false;
+    this.lantern = new THREE.PointLight(0xffb060, 0, 18, 1.6);
+    this.lantern.position.set(0.18, -0.05, 0.12);
+    this.rig.bones.hips.add(this.lantern);
+    const lm = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.1, 8), new THREE.MeshStandardMaterial({ color: 0x2a2a2a, emissive: 0xffa040, emissiveIntensity: 0 }));
+    lm.position.copy(this.lantern.position).add(new THREE.Vector3(0, -0.05, 0));
+    this.rig.bones.hips.add(lm);
+    this.lanternMesh = lm;
+  }
+
+  updateLantern(dt) {
+    const target = this.lanternOn && this.alive && !this.swimming ? 9 + Math.sin(performance.now() * 0.013) * 0.6 : 0;
+    this.lantern.intensity = damp(this.lantern.intensity, target, 10, dt);
+    this.lanternMesh.material.emissiveIntensity = this.lantern.intensity * 0.3;
   }
 
   get kind() { return 'player'; }
@@ -155,6 +170,7 @@ export class Player extends Entity {
     const G = this.game;
     const T = G.terrain;
     const a = this.rig.anim;
+    this.updateLantern(dt);
     if (!this.alive) {
       a.dead = Math.min(1, a.dead + dt * 1.5);
       this.group.rotation.x = -smoothstep(0, 1, a.dead) * Math.PI / 2;

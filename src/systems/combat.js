@@ -163,7 +163,7 @@ export class Combat {
       if (to.normalize().dot(fwd) < 0.35) continue;
       // stealth takedown: unaware raiders/dinos die instantly from behind while crouched
       let dmg = def.dmg;
-      const unaware = (e.kind === 'human' && e.state !== 'combat') || (e.kind === 'dino' && e.state !== 'chase' && e.def.size < 2);
+      const unaware = (e.kind === 'human' && (e.state !== 'combat' || e.role === 'infected')) || (e.kind === 'dino' && e.state !== 'chase' && e.def.size < 2);
       const behind = new THREE.Vector3(Math.sin(e.yaw), 0, Math.cos(e.yaw)).dot(fwd) > 0.3;
       if (player.crouching && unaware && behind) { dmg = 999; G.hud.toast('Silent takedown'); G.stats.takedowns++; }
       const p = e.pos.clone(); p.y += (e.height || 1.2) * 0.6;

@@ -222,7 +222,7 @@ export class UI {
         <div><span>Animals harvested</span><b>${st.harvested}</b></div><div><span>Bounties claimed</span><b>${st.bounties}</b></div>
         <div><span>Amber found</span><b>${st.amber}</b></div><div><span>Places discovered</span><b>${this.game.hud.discovered.size} / ${LOCATIONS.length}</b></div>
       </div>
-      <h3>Field Notes</h3><p class="notes">Herbivores flee from noise. Predators come to it.<br>Raptors hunt in packs and flank — keep your back to a wall.<br>Gallimimus can be calmed with bait. Approach crouched.<br>Dilophosaurs spit venom that blinds. Kill them fast or keep your distance.<br>The Tyrannosaur rules the eastern paddock. Don't run in a straight line.</p>
+      <h3>Field Notes</h3><p class="notes">Herbivores flee from noise. Predators come to it.<br>Raptors hunt in packs and flank — keep your back to a wall.<br>Gallimimus can be calmed with bait. Approach crouched.<br>Dilophosaurs spit venom that blinds. Kill them fast or keep your distance.<br>The Tyrannosaur rules the eastern paddock. Don't run in a straight line.<br>The Infected came ashore with the freighter. Body shots barely slow them — aim for the head. They're faster at night.</p>
       </div></div>`;
   }
 
@@ -231,6 +231,7 @@ export class UI {
     const opt = (k, vals) => vals.map((v) => `<option value="${v}" ${S[k] === v ? 'selected' : ''}>${v[0].toUpperCase() + v.slice(1)}</option>`).join('');
     return `<div class="settings"><h3>Settings</h3>
       <label>Graphics quality <select data-set="quality">${opt('quality', ['low', 'medium', 'high', 'ultra'])}</select></label>
+      <label>Adaptive resolution <input type="checkbox" ${S.adaptive ? 'checked' : ''} data-set="adaptive"></label>
       <label>Render scale <input type="range" min="0.5" max="1" step="0.05" value="${S.renderScale}" data-set="renderScale"><em>${Math.round(S.renderScale * 100)}%</em></label>
       <label>Difficulty <select data-set="difficulty">${opt('difficulty', ['easy', 'normal', 'hard'])}</select></label>
       <label>Mouse sensitivity <input type="range" min="0.2" max="3" step="0.1" value="${S.sensitivity}" data-set="sensitivity"></label>
@@ -251,7 +252,7 @@ export class UI {
   }
 
   controlsHTML() {
-    const rows = [['W A S D', 'Move'], ['Shift', 'Sprint / gallop'], ['C', 'Crouch (stealth)'], ['Space', 'Jump'], ['Right Mouse', 'Aim'], ['Left Mouse', 'Fire / draw bow / swing'], ['Q (while aiming)', 'Dead Eye — mark targets, click to unleash'], ['R', 'Reload'], ['1 – 4 / Wheel', 'Switch weapon'], ['T', 'Toggle venom arrows'], ['E', 'Interact / gather / talk / loot (hold to tame)'], ['F', 'Mount / dismount'], ['H', 'Whistle for your mount'], ['G', 'Eat food'], ['B', 'Use bandage'], ['X (hold)', 'Walk slowly'], ['Tab', 'Satchel & crafting'], ['M', 'Map'], ['J', 'Journal'], ['Esc', 'Pause']];
+    const rows = [['W A S D', 'Move'], ['Shift', 'Sprint / gallop'], ['C', 'Crouch (stealth)'], ['Space', 'Jump'], ['Right Mouse', 'Aim'], ['Left Mouse', 'Fire / draw bow / swing'], ['Q (while aiming)', 'Dead Eye — mark targets, click to unleash'], ['R', 'Reload'], ['1 – 4 / Wheel', 'Switch weapon'], ['T', 'Toggle venom arrows'], ['E', 'Interact / gather / talk / loot (hold to tame)'], ['F', 'Mount / dismount'], ['H', 'Whistle for your mount'], ['L', 'Toggle lantern'], ['G', 'Eat food'], ['B', 'Use bandage'], ['X (hold)', 'Walk slowly'], ['Tab', 'Satchel & crafting'], ['M', 'Map'], ['J', 'Journal'], ['Esc', 'Pause']];
     return `<div class="controls"><h3>Controls</h3>${rows.map(([k, v]) => `<div class="cr"><kbd>${k}</kbd><span>${v}</span></div>`).join('')}</div>`;
   }
   creditsHTML() {

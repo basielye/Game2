@@ -35,7 +35,7 @@ const QUALITY = {
   ultra: { pr: 2, shadow: 4096, extent: 120, treeShadows: true, grassRadius: 70, grassDensity: 1.8, lod: 1.25, lights: 8, fog: 0.0013 },
 };
 
-const DEFAULT_SETTINGS = { quality: 'medium', renderScale: 1, difficulty: 'normal', sensitivity: 1, fov: 62, invertY: false, master: 0.8, music: 0.55, sfx: 1, showFps: false };
+const DEFAULT_SETTINGS = { quality: 'medium', renderScale: 1, adaptive: true, difficulty: 'normal', sensitivity: 1, fov: 62, invertY: false, master: 0.8, music: 0.55, sfx: 1, showFps: false };
 const SAVE_KEY = 'jf_save_v1';
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
@@ -139,7 +139,7 @@ class Game {
   }
 
   onResize() {
-    const pr = Math.min(devicePixelRatio, 2) * this.quality.pr * this.settings.renderScale;
+    const pr = Math.min(devicePixelRatio, 2) * this.quality.pr * this.settings.renderScale * (this.dynScale || 1);
     this.pixelRatio = Math.max(0.5, Math.min(pr, devicePixelRatio * 1.0 > 1.5 ? 2 : 1.5));
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(innerWidth, innerHeight);
@@ -279,7 +279,7 @@ class Game {
       if (d > (e.radius || 0.5) + 6) continue;
       if (e.kind === 'human') {
         if (e.alive && e.faction === 'haven' && d < 2.8 && (e.lines || e.npcId)) consider(d, { type: 'talk', e, label: `Talk to ${e.name}${e.npcId && this.quests.wantsTalk(e.npcId) ? ' <b class="q">!</b>' : ''}` });
-        else if (!e.alive && !e.looted && d < 2.2) consider(d, { type: 'lootBody', e, label: 'Search body' });
+        else if (!e.alive && !e.looted && d < 2.2 && e.role !== 'infected') consider(d, { type: 'lootBody', e, label: 'Search body' });
       } else if (e.kind === 'dino') {
         const reach = e.radius + 2;
         if (!e.alive && !e.lootTaken && d < reach + 1.5) consider(d - 1, { type: 'harvest', e, label: `Harvest ${e.flyer ? 'Pteranodon' : SPECIES[e.kindName].label}` });
@@ -470,7 +470,7 @@ class Game {
 
   onPlayerDeath() {
     const src = this.player.lastAttacker;
-    const cause = src ? (src.kind === 'dino' ? `Killed by a ${src.flyer ? 'Pteranodon' : SPECIES[src.kindName].label}.` : `Gunned down by ${src.name || 'a raider'}.`) : 'The island claimed you.';
+    const cause = src ? (src.kind === 'dino' ? `Killed by a ${src.flyer ? 'Pteranodon' : SPECIES[src.kindName].label}.` : src.role === 'infected' ? 'Torn apart by the Infected.' : `Gunned down by ${src.name || 'a raider'}.`) : 'The island claimed you.';
     this.audio.ui('fail');
     if (this.player.deadEye) this.combat.endDeadEye();
     setTimeout(() => { this.state = 'dead'; this.input.unlock(); this.hud.show(false); this.ui.showDeath(cause); }, 2600);
@@ -544,6 +544,21 @@ class Game {
       if (m) this.population.setMount(m);
     }
     return true;
+  }
+
+  // Dynamic resolution: trade pixels for framerate on weaker laptops.
+  adaptResolution(realDt) {
+    if (!this.settings.adaptive) { if (this.dynScale !== 1) { this.dynScale = 1; this.onResize(); } return; }
+    this.dynScale ||= 1;
+    this._adT = (this._adT || 0) + realDt;
+    this._adF = (this._adF || 0) + 1;
+    if (this._adT < 2.5) return;
+    const fps = this._adF / this._adT;
+    this._adT = 0; this._adF = 0;
+    let next = this.dynScale;
+    if (fps < 38) next = Math.max(0.55, this.dynScale - (fps < 25 ? 0.15 : 0.08));
+    else if (fps > 57) next = Math.min(1, this.dynScale + 0.05);
+    if (Math.abs(next - this.dynScale) > 0.01) { this.dynScale = next; this.onResize(); }
   }
 
   // Debug/test hook: advance the simulation without rendering.
@@ -624,10 +639,10 @@ class Game {
     // slow drift across Brachiosaur Lake as the giants drink at sunset
     const L = locById.lake;
     const herd = this.population.rex && this.entities.find((e) => e.kindName === 'brachio');
-    const a = 0.6 + this.titleT * 0.025;
-    const r = 95;
+    const a = 0.6 + this.titleT * 0.02;
+    const r = 62;
     const cx = L.x + Math.sin(a) * r, cz = L.z + Math.cos(a) * r;
-    const cy = Math.max(this.terrain.getHeight(cx, cz), 0) + 9 + Math.sin(this.titleT * 0.1) * 2;
+    const cy = Math.max(this.terrain.getHeight(cx, cz), 0) + 11 + Math.sin(this.titleT * 0.1) * 1.5;
     this.camera.position.set(cx, cy, cz);
     const tgt = herd ? herd.pos : new THREE.Vector3(L.x, 0, L.z);
     this._titleLook = this._titleLook || tgt.clone();
@@ -652,6 +667,7 @@ class Game {
     if (!dialog && P.alive && this.state === 'game') {
       this.handleInteraction(dt);
       if (I.hit('KeyH')) this.population.whistle();
+      if (I.hit('KeyL')) { P.lanternOn = !P.lanternOn; this.audio.ui('click'); }
       if (I.hit('KeyG')) { if (!this.inventory.use('cookedMeat') && !this.inventory.use('meat') && !this.inventory.use('berries')) this.hud.toast('No food'); }
       if (I.hit('KeyB')) { if (!this.inventory.use('bandage')) this.hud.toast(this.inventory.count('bandage') ? 'Already at full health' : 'No bandages'); }
     }
@@ -678,6 +694,7 @@ class Game {
     this.post.u.uDamage.value = Math.max(this.hud.dmgT * 0.8, P.hp / P.maxHp < 0.3 ? 0.4 : 0);
     this.hud.update(realDt);
     this.hud.el.querySelector('#clickhint').style.display = this.input.locked || this.ui.dialogActive() || !P.alive ? 'none' : 'block';
+    this.adaptResolution(realDt);
     this.autoSaveT = (this.autoSaveT || 0) + realDt;
     if (this.autoSaveT > 60 && !this.inCombat()) { this.autoSaveT = 0; this.save(); }
     // day counter
