@@ -63,6 +63,15 @@ export class Player extends Entity {
     this.weaponMeshes.pistol.position.set(0, -0.06, 0.02);
     this.weaponMeshes.rifle.position.set(0, -0.06, 0.02);
     this.weaponMeshes.machete.position.set(0, -0.07, 0.02);
+    // holstered copies shown when a weapon isn't in hand
+    const B = this.rig.bones;
+    const hol = (type, bone, pos, rot) => { const m = makeWeaponMesh(type); m.position.copy(pos); m.rotation.set(...rot); m.visible = false; bone.add(m); return m; };
+    this.holstered = {
+      pistol: hol('pistol', B.thighR, new THREE.Vector3(-0.09, -0.06, 0.02), [Math.PI / 2 + 0.15, 0, 0]),
+      machete: hol('machete', B.hips, new THREE.Vector3(0.16, -0.02, -0.04), [Math.PI / 2 + 0.2, 0, 0.1]),
+      rifle: hol('rifle', B.chest, new THREE.Vector3(0.02, 0.06, -0.2), [0.2, 0, 2.3]),
+      bow: hol('bow', B.chest, new THREE.Vector3(0.0, 0.05, -0.25), [0, Math.PI / 2, 0.5]),
+    };
     this.footT = 0;
     this.breathT = 0;
     this.lastSafe = new THREE.Vector3();
@@ -333,6 +342,7 @@ export class Player extends Entity {
     const w = this.weapon;
     const a = this.rig.anim;
     for (const k in this.weaponMeshes) this.weaponMeshes[k].visible = k === w && !this.swimming;
+    for (const k in this.holstered) this.holstered[k].visible = this.weapons.includes(k) && (k !== w || this.swimming);
     a.weapon = this.swimming ? 'none' : WEAPONS[w].hold || WEAPONS[w].type;
     if (w === 'machete') a.weapon = 'melee';
   }

@@ -181,7 +181,7 @@ class Game {
     localStorage.removeItem(SAVE_KEY);
     this.ui.playIntro(() => {
       const b = locById.bunker;
-      this.player.spawn(b.x - 2, b.z + 8, Math.PI * 0.85);
+      this.player.spawn(b.x - 2, b.z + 8, Math.atan2(80 - b.x, 400 - b.z));
       this.atmo.time = 6.4;
       this.day = 1;
       this.startPlaying();
