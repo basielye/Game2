@@ -55,7 +55,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; border: 1px sol
 #prompt b.q { color: var(--gold); font-family: var(--display); }
 #progress { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px; opacity: 0; transform: rotate(-90deg); }
 #progress circle { fill: none; stroke-width: 4; } #progress .track { stroke: rgba(0,0,0,.5); } #progress .bar { stroke: var(--gold); stroke-dasharray: 100.5; stroke-dashoffset: 100.5; }
-#toasts { position: absolute; left: 28px; top: 38%; display: flex; flex-direction: column; gap: 6px; }
+#toasts { position: absolute; left: 28px; top: 47%; display: flex; flex-direction: column; gap: 6px; }
 .toast { font-size: 18px; padding: 5px 14px; background: linear-gradient(90deg, rgba(10,6,3,.75), transparent); border-left: 3px solid var(--gold); animation: tin .35s ease; transition: opacity .6s, transform .6s; }
 .toast.danger { border-color: var(--blood); color: #ffb0a0; }
 .toast.out { opacity: 0; transform: translateX(-20px); }
@@ -165,3 +165,5 @@ button:disabled { opacity: .35; cursor: default; }
 .guide { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; } .gd b { display: block; font-size: 16px; } .gd span { font-size: 13px; color: var(--ink-dim); font-style: italic; } .gd.unk { opacity: .35; } h3 small { font-family: var(--caps); font-size: 13px; color: var(--ink-dim); }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 #title .menu button:focus { color: var(--gold); padding-left: 14px; outline: none; }
+#hint { position: absolute; left: 28px; top: 24%; max-width: 360px; padding: 12px 16px; font-size: 17px; line-height: 1.45; background: rgba(12,8,4,.78); border: 1px solid rgba(217,164,65,.5); border-left: 3px solid var(--gold); opacity: 0; transform: translateX(-20px); transition: all .5s; }
+#hint.show { opacity: 1; transform: none; } #hint b { color: var(--gold); font-weight: normal; }

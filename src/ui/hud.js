@@ -38,7 +38,7 @@ export class HUD {
       <div id="markers"></div>
       <div id="dirdmg"></div>
       <div id="subtitle"></div>
-      <div id="fps"></div><div id="clickhint">Click to take control</div>
+      <div id="fps"></div><div id="clickhint">Click to take control</div><div id="hint"></div>
     `;
     document.body.appendChild(el);
     this.mini = $('#minimap', el).getContext('2d');
@@ -117,6 +117,13 @@ export class HUD {
     el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
     this.game.audio.ui('discover');
     setTimeout(() => { $('.d1', el).textContent = 'DISCOVERED'; }, 4600);
+  }
+
+  hint(html) {
+    const h = $('#hint', this.el);
+    h.innerHTML = html;
+    h.classList.remove('show'); void h.offsetWidth; h.classList.add('show');
+    clearTimeout(this._hintTO); this._hintTO = setTimeout(() => h.classList.remove('show'), 9000);
   }
 
   subtitle(text, dur = 4) {

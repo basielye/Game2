@@ -560,6 +560,31 @@ class Game {
     return true;
   }
 
+  // Contextual one-time hints that teach mechanics when they first matter.
+  hint(id, html) {
+    this.hintsShown ||= new Set(JSON.parse(localStorage.getItem('jf_hints') || '[]'));
+    if (this.hintsShown.has(id)) return;
+    this.hintsShown.add(id);
+    localStorage.setItem('jf_hints', JSON.stringify([...this.hintsShown]));
+    this.hud.hint(html);
+  }
+  checkHints(dt) {
+    this._hintT = (this._hintT || 0) - dt;
+    if (this._hintT > 0 || this.cameraRig.cinematic || this.ui.dialogActive()) return;
+    this._hintT = 1;
+    const P = this.player, I = this.inventory, Q = this.quests;
+    if (this.pickups.nearest(P.pos, 8)) this.hint('gather', 'Walk up to glinting resources and press <kbd>E</kbd> to gather them.');
+    if (I.count('wood') >= 3 && I.count('fiber') >= 3 && !P.weapons.includes('bow')) this.hint('satchel', 'Press <kbd>Tab</kbd> to open your satchel and craft a <b>Hunting Bow</b>.');
+    if (P.weapon === 'bow') this.hint('bow', 'Hold <kbd>Right Mouse</kbd> to aim, then hold and release <kbd>Left Mouse</kbd> to shoot. A full draw flies farther.');
+    if (this.entities.some((e) => e.kind === 'dino' && e.alive && e.def.diet === 'herb' && e.pos.distanceTo(P.pos) < 45)) this.hint('crouch', 'Animals hear you coming. Press <kbd>C</kbd> to crouch and sneak closer.');
+    if (Q.step && Q.step.type === 'goto') this.hint('map', 'Follow the gold marker on your compass. Press <kbd>M</kbd> for the map.');
+    if (this.atmo.isNight()) this.hint('lantern', 'Night has fallen. Press <kbd>L</kbd> to light your lantern — predators hunt in the dark.');
+    if (P.hp < P.maxHp * 0.45) this.hint('heal', 'You\'re hurt. <kbd>B</kbd> uses a bandage, <kbd>G</kbd> eats food. Rest at campfires to recover fully.');
+    if (P.aiming && P.wdef.type === 'gun' && P.focus > 40) this.hint('deadeye', 'Press <kbd>Q</kbd> while aiming to enter <b>Dead Eye</b>: sweep across targets to mark them, then click to fire.');
+    if (P.mounted) this.hint('ride', '<kbd>Shift</kbd> to gallop, <kbd>Space</kbd> to leap, <kbd>F</kbd> to dismount. <kbd>H</kbd> whistles your mount from anywhere.');
+    if (this.entities.some((e) => e.kind === 'human' && e.faction === 'raider' && e.alive && e.pos.distanceTo(P.pos) < 90)) this.hint('stealth', 'Raiders ahead. The eye above their heads fills as they notice you. Stay crouched; silent bow and machete kills keep the others unaware.');
+  }
+
   // Field guide: document each species the first time it is seen up close.
   checkSightings(dt) {
     this._sightT = (this._sightT || 0) - dt;
@@ -739,6 +764,7 @@ class Game {
     this.hud.el.querySelector('#clickhint').style.display = this.input.locked || this.input.padActive || this.ui.dialogActive() || !P.alive ? 'none' : 'block';
     this.adaptResolution(realDt);
     this.checkSightings(realDt);
+    this.checkHints(realDt);
     if (this.slowmoT > 0) { this.slowmoT -= realDt; if (this.slowmoT <= 0 && !P.deadEye) this.timeScale = 1; }
     this.autoSaveT = (this.autoSaveT || 0) + realDt;
     if (this.autoSaveT > 60 && !this.inCombat()) { this.autoSaveT = 0; this.save(); }

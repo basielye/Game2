@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { RigBuilder, limb, ellipsoid, setRot } from './rig.js';
 import { clamp, lerp, damp } from '../core/math.js';
 import { getTex } from '../core/textures.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 let sharedMat = null;
 function humanMaterial() {
@@ -306,5 +307,25 @@ export function makeWeaponMesh(type) {
   } else if (type === 'torch') {
     add(new THREE.CylinderGeometry(0.02, 0.025, 0.5, 6), wood, 0, -0.04, 0.12, Math.PI / 2.4);
   }
-  return g;
+  // bake into a single vertex-coloured mesh: one draw call per weapon
+  const geos = [];
+  g.updateMatrixWorld(true);
+  for (const m of g.children) {
+    const geo = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()).applyMatrix4(m.matrix);
+    const c = m.material.color;
+    const n = geo.attributes.position.count, col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'color'].includes(k)) geo.deleteAttribute(k);
+    geos.push(geo);
+  }
+  const out = new THREE.Group();
+  const mesh = new THREE.Mesh(mergeGeometries(geos), weaponMat());
+  mesh.castShadow = true;
+  out.add(mesh);
+  out.userData.muzzle = g.userData.muzzle;
+  return out;
 }
+
+let _wMat = null;
+function weaponMat() { return (_wMat ||= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.45 })); }

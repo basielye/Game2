@@ -6,10 +6,13 @@ import { rand } from '../core/math.js';
 const pVert = /* glsl */`
 attribute float aSize; attribute vec4 aColor;
 varying vec4 vColor;
-uniform float uScale;
+uniform float uScale, uFogD, uAdd; uniform vec3 uFogC;
 void main(){
   vColor = aColor;
   vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  float fd = -mv.z * uFogD; float fogF = 1.0 - exp(-fd * fd);
+  vColor.rgb = mix(vColor.rgb, uFogC, fogF * (1.0 - uAdd));
+  vColor.a *= 1.0 - fogF * (0.6 + 0.4 * uAdd);
   gl_PointSize = aSize * 0.01 * uScale / -mv.z;
   gl_Position = projectionMatrix * mv;
 }`;
@@ -33,7 +36,7 @@ class ParticleSystem {
     g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
     g.setAttribute('aSize', new THREE.BufferAttribute(this.size, 1).setUsage(THREE.DynamicDrawUsage));
     g.setAttribute('aColor', new THREE.BufferAttribute(this.color, 4).setUsage(THREE.DynamicDrawUsage));
-    this.uniforms = { uTex: { value: tex }, uScale: { value: 600 } };
+    this.uniforms = { uTex: { value: tex }, uScale: { value: 600 }, uFogD: { value: 0.0016 }, uFogC: { value: new THREE.Color() }, uAdd: { value: blending === THREE.AdditiveBlending ? 1 : 0 } };
     this.mat = new THREE.ShaderMaterial({ vertexShader: pVert, fragmentShader: pFrag, uniforms: this.uniforms, transparent: true, depthWrite: false, blending });
     this.points = new THREE.Points(g, this.mat);
     this.points.frustumCulled = false;
@@ -97,6 +100,8 @@ export class FX {
     this.rainAmt = 0;
     // ambient motes (fireflies at night / pollen at day)
     this.moteT = 0;
+    this.plumeT = 0;
+    this.plumeY = game.terrain.getHeight(-62, -612) + 2;
   }
   setScale(h, fov = 62) { this.soft.uniforms.uScale.value = this.add.uniforms.uScale.value = h / (2 * Math.tan((fov * Math.PI) / 360)); }
 
@@ -170,6 +175,8 @@ export class FX {
   }
 
   update(dt, camPos, rainAmt, night) {
+    const fog = this.scene.fog;
+    for (const sys of [this.soft, this.add]) { sys.uniforms.uFogD.value = fog.density; sys.uniforms.uFogC.value.copy(fog.color); }
     this.soft.update(dt); this.add.update(dt);
     for (const t of this.tracers) if (t.t > 0) { t.t -= dt; t.m.material.opacity = Math.max(0, t.t / 0.08); if (t.t <= 0) t.m.visible = false; }
     if (this.flashT > 0) { this.flashT -= dt; if (this.flashT <= 0) { this.flashLight.intensity = 0; this.flashSprite.visible = false; } }
@@ -177,6 +184,14 @@ export class FX {
     this.rain.visible = rainAmt > 0.05;
     if (this.rainU) { this.rainU.value += dt; this.rainC.value.copy(camPos); }
     this.rain.material.opacity = 0.35 * rainAmt;
+    // Mount Sibo fumarole: a slow column of volcanic steam visible across the island
+    this.plumeT -= dt;
+    if (this.plumeT <= 0) {
+      this.plumeT = 0.14;
+      const night2 = night;
+      const shade = 0.75 - night2 * 0.55;
+      this.soft.emit({ x: -62 + rand(-3, 3), y: this.plumeY + rand(0, 2), z: -612 + rand(-3, 3), vx: rand(0.4, 1.2), vy: rand(2.2, 3.2), vz: rand(-0.3, 0.5), age: 0, life: rand(14, 20), s0: 500, s1: 3200, r: shade, gc: shade, b: shade * 1.02, a: 0.32, drag: 0.04, fadeIn: 2 });
+    }
     // ambient motes: fireflies at night, drifting pollen by day
     this.moteT -= dt;
     if (this.moteT <= 0) {
