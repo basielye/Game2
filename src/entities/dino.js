@@ -164,7 +164,11 @@ export class Dino extends Entity {
       } else if (!this.tamed) {
         let fear = 0;
         if (e.faction === 'pred' && e.def && e.def.size >= d.size * 0.5) fear = d.sight * 0.7;
-        if (e.category === 'player') fear = e.crouching ? 9 : e.sprinting || e.mounted ? 30 : 18;
+        if (e.category === 'player') {
+          fear = e.crouching ? 9 : e.sprinting || e.mounted ? 30 : 18;
+          // a crouched ranger carrying bait is curious, not scary
+          if (d.mountable && e.crouching && G.inventory.count('bait') > 0) fear = 2.2;
+        }
         if (e.category === 'human' && e.faction === 'raider') fear = 20;
         if (e.category === 'infected') fear = 14;
         if (d.gentle && e.kindName !== 'trex') fear = 0;

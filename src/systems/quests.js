@@ -41,6 +41,7 @@ export class Quests {
     if (s.type === 'killTag') G.population.ensureCamp(s.tag.split(':')[1]);
     if (s.type === 'killId' && s.id === 'crane') G.population.ensureCamp('cranecamp');
     if (this.quest.id === 'm7' && s.type === 'killId') G.population.spawnRexNear(locById.cranecamp, 260);
+    if (s.id === 'labcrate') { const H = locById.hatchery; G.population.spawnHerd('dilo', H.x + 14, H.z + 10, 2); G.population.spawnHerd('compy', H.x - 12, H.z + 16, 5); }
   }
 
   // Can the player talk to this npc for the story right now?

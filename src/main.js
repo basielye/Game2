@@ -23,7 +23,7 @@ import { UI } from './ui/ui.js';
 import { renderMap } from './ui/mapgen.js';
 import { locById, LOCATIONS } from './data/world.js';
 import { ITEMS } from './data/items.js';
-import { DIALOGS } from './data/story.js';
+import { DIALOGS, FIELD_GUIDE } from './data/story.js';
 import { DINO_DEFS } from './data/dinos.js';
 import { SPECIES } from './entities/dinoModels.js';
 import { clamp, damp, rand, pick, smoothstep } from './core/math.js';
@@ -49,6 +49,7 @@ class Game {
     this.day = 1;
     this.stats = { kills: 0, headshots: 0, takedowns: 0, harvested: 0, bounties: 0, amber: 0, discovered: 0, shots: 0 };
     this.looted = new Set();
+    this.seen = new Set();
     this.state = 'loading';
     this.storm = 0; this.stormTarget = 0; this.weatherT = 300;
     this.frame = 0;
@@ -186,6 +187,13 @@ class Game {
       this.startPlaying();
       this.quests.begin();
       this.hud.banner('JURASSIC FRONTIER', 'Chapter I', 'Wake Up, Ranger');
+      // sweep down from the canopy to Ava at the bunker door
+      const P = this.player, look = P.pos.clone().add(new THREE.Vector3(0, 1.4, 0));
+      const from = P.pos.clone().add(new THREE.Vector3(-40, 38, -30));
+      const to = P.pos.clone().add(new THREE.Vector3(-Math.sin(P.yaw) * 3.8, 2.0, -Math.cos(P.yaw) * 3.8));
+      P.camYaw = P.yaw; P.camPitch = -0.1;
+      this.hud.letterbox(true);
+      this.cameraRig.startCinematic(from, to, look.clone().add(new THREE.Vector3(30, 0, 40)), look, 6, () => this.hud.letterbox(false));
       setTimeout(() => this.hud.subtitle('Ava: "Three years in that bunker. Time to see what\'s left of the world."', 6), 1500);
     });
   }
@@ -516,7 +524,7 @@ class Game {
       inv: this.inventory.items, crafted: [...this.inventory.crafted],
       quests: this.quests.serialize(), cleared: [...this.population.cleared], looted: [...this.looted],
       taken: [...this.pickups.taken], discovered: [...this.hud.discovered], time: this.atmo.time, day: this.day,
-      mount: m && m.alive ? { kind: m.kindName, x: m.pos.x, z: m.pos.z, scale: m.scale } : null, stats: this.stats,
+      mount: m && m.alive ? { kind: m.kindName, x: m.pos.x, z: m.pos.z, scale: m.scale } : null, stats: this.stats, seen: [...this.seen],
     };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); if (announce) this.hud.toast('Game saved'); } catch (e) { console.warn(e); }
   }
@@ -536,6 +544,7 @@ class Game {
     this.hud.discovered = new Set(d.discovered);
     this.atmo.time = d.time; this.day = d.day;
     Object.assign(this.stats, d.stats);
+    this.seen = new Set(d.seen || []);
     this.quests.load(d.quests);
     if (this.quests.flags.power) { this.onPowerRestored(); const pw = this.structures.interactables.find((i) => i.id === 'power'); if (pw) pw.done = true; }
     if (d.mount) {
@@ -544,6 +553,33 @@ class Game {
       if (m) this.population.setMount(m);
     }
     return true;
+  }
+
+  // Field guide: document each species the first time it is seen up close.
+  checkSightings(dt) {
+    this._sightT = (this._sightT || 0) - dt;
+    if (this._sightT > 0) return;
+    this._sightT = 0.5;
+    const P = this.player, cam = this.camera;
+    const fwd = cam.getWorldDirection(new THREE.Vector3());
+    for (const e of this.entities) {
+      if (!e.alive || e === P) continue;
+      const key = e.kind === 'dino' ? e.kindName : e.role === 'infected' ? 'infected' : null;
+      if (!key || this.seen.has(key) || !FIELD_GUIDE[key]) continue;
+      const to = e.pos.clone().sub(cam.position);
+      const d = to.length();
+      const range = key === 'brachio' || key === 'trex' ? 110 : key === 'ptera' ? 90 : 45;
+      if (d > range || to.normalize().dot(fwd) < 0.75) continue;
+      this.seen.add(key);
+      this.hud.discoverSpecies(FIELD_GUIDE[key][0]);
+      if (key === 'trex' && e.pos.distanceTo(P.pos) < 90) {
+        e.target = P; e.setState('roar');
+        this.timeScale = 0.45; this.slowmoT = 2.2;
+        this.cameraShake(e.pos, 0.6);
+        this.hud.banner('', 'TYRANNOSAURUS REX', 'Run.');
+      }
+      break;
+    }
   }
 
   // Dynamic resolution: trade pixels for framerate on weaker laptops.
@@ -658,7 +694,7 @@ class Game {
   updateGame(realDt) {
     const dt = realDt * this.timeScale;
     const P = this.player, I = this.input;
-    const dialog = this.ui.dialogActive();
+    const dialog = this.ui.dialogActive() || !!this.cameraRig.cinematic;
     if (dialog) { I.mouse.dx = I.mouse.dy = 0; }
     if (dialog) I.enabled = false;
     P.update(dt, I, this.camera);
@@ -676,6 +712,7 @@ class Game {
     this.population.updateEcosystem(dt);
     this.quests.update(dt);
     this.pickups.update(P.pos);
+    this.pickups.sparkle(dt, P.pos);
     // weather
     this.weatherT -= dt;
     if (this.weatherT <= 0) { this.weatherT = rand(180, 420); this.stormTarget = Math.random() < 0.28 ? rand(0.6, 1) : 0; }
@@ -695,6 +732,8 @@ class Game {
     this.hud.update(realDt);
     this.hud.el.querySelector('#clickhint').style.display = this.input.locked || this.ui.dialogActive() || !P.alive ? 'none' : 'block';
     this.adaptResolution(realDt);
+    this.checkSightings(realDt);
+    if (this.slowmoT > 0) { this.slowmoT -= realDt; if (this.slowmoT <= 0 && !P.deadEye) this.timeScale = 1; }
     this.autoSaveT = (this.autoSaveT || 0) + realDt;
     if (this.autoSaveT > 60 && !this.inCombat()) { this.autoSaveT = 0; this.save(); }
     // day counter

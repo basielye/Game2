@@ -110,6 +110,15 @@ export class HUD {
     this.game.stats.discovered = this.discovered.size;
   }
 
+  discoverSpecies(name) {
+    const el = $('#discover', this.el);
+    $('.d1', el).textContent = 'FIELD GUIDE · NEW SPECIES';
+    $('.d2', el).textContent = name;
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+    this.game.audio.ui('discover');
+    setTimeout(() => { $('.d1', el).textContent = 'DISCOVERED'; }, 4600);
+  }
+
   subtitle(text, dur = 4) {
     const s = $('#subtitle', this.el);
     s.textContent = text; s.style.opacity = 1;

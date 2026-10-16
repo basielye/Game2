@@ -162,3 +162,4 @@ button:disabled { opacity: .35; cursor: default; }
 #ending .etext.show { animation: itext 5.2s ease forwards; }
 @media (max-width: 900px) { #objective { max-width: 240px; } #compass { transform: scale(.75); } .satchel, .journal, .shop .cols { grid-template-columns: 1fr; } .mapwrap { flex-direction: column; align-items: center; } }
 #clickhint { position: absolute; left: 50%; top: 42%; transform: translateX(-50%); font-family: var(--caps); letter-spacing: 3px; font-size: 18px; padding: 10px 26px; background: rgba(10,6,3,.7); border: 1px solid var(--gold); display: none; animation: pulse 1s infinite alternate; }
+.guide { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; } .gd b { display: block; font-size: 16px; } .gd span { font-size: 13px; color: var(--ink-dim); font-style: italic; } .gd.unk { opacity: .35; } h3 small { font-family: var(--caps); font-size: 13px; color: var(--ink-dim); }

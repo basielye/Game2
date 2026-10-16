@@ -175,3 +175,17 @@ export const ENDINGS = {
   sail: ['Ava sailed west at dawn, with nine settlers aboard.', 'On the third night, she saw the fire on the north point of Kestrel Island.', 'Behind her, Isla Nublar faded into the mist — still wild, still beautiful.', 'Some nights, she swears she can still hear them roaring.'],
   stay: ['The boat left with the families. Ava stayed.', 'Someone had to ride the roads. Someone had to keep the fences humming.', 'Haven grew. The herds returned to the southern meadows.', 'And the last ranger of Isla Nublar kept watch over a world that belonged to the dinosaurs.'],
 };
+
+export const FIELD_GUIDE = {
+  compy: ['Compsognathus', 'Chicken-sized scavengers. Alone they are a nuisance; in a swarm they are a problem.'],
+  gallimimus: ['Gallimimus', 'Flighty, fast, and the best mount on the island once calmed with bait.'],
+  para: ['Parasaurolophus', 'Its horn call carries for miles. Strong enough to carry a rider at speed.'],
+  trike: ['Triceratops', 'Will warn you once. The second time, it charges.'],
+  stego: ['Stegosaurus', 'Slow-witted and slow to anger. That tail can split a jeep.'],
+  brachio: ['Brachiosaurus', 'The gentle giants of the lake. Thirty tons of indifference.'],
+  raptor: ['Velociraptor', 'Pack hunters. They test fences, flank from cover and pounce. Never turn your back.'],
+  dilo: ['Dilophosaurus', 'The frill means it is about to spit. The venom blinds.'],
+  trex: ['Tyrannosaurus Rex', 'The Queen of the island. Her territory is wherever she is standing.'],
+  ptera: ['Pteranodon', 'Nests in the old Aviary. Dives at anything that wanders too close.'],
+  infected: ['The Infected', 'They came ashore with the freighter. The mainland plague, here at last. Headshots only.'],
+};

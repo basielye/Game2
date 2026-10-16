@@ -90,6 +90,19 @@ export class Pickups {
     for (const k in this.meshes) { this.meshes[k].count = counts[k]; this.meshes[k].instanceMatrix.needsUpdate = true; }
   }
 
+  // occasional glints so resources are easy to spot
+  sparkle(dt, pos) {
+    this._spT = (this._spT || 0) - dt;
+    if (this._spT > 0) return;
+    this._spT = 0.12;
+    const fx = this.game.fx;
+    for (const p of this.active) {
+      const d2 = p.pos.distanceToSquared(pos);
+      if (d2 > 260 || Math.random() > 0.12) continue;
+      fx.add.emit({ x: p.x + (Math.random() - 0.5) * 0.4, y: p.y + 0.35 + Math.random() * 0.3, z: p.z + (Math.random() - 0.5) * 0.4, vx: 0, vy: 0.25, vz: 0, age: 0, life: 0.9, s0: 9, s1: 2, r: 1, gc: 0.95, b: 0.7, a: 0.9, drag: 0, fadeIn: 0.2 });
+    }
+  }
+
   nearest(pos, maxD = 2.2) {
     let best = null, bd = maxD * maxD;
     for (const p of this.active) { const d = p.pos.distanceToSquared(pos); if (d < bd) { bd = d; best = p; } }

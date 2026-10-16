@@ -1,5 +1,5 @@
 // Menus & overlays: title screen, intro, pause (map / satchel / journal / settings / controls), shop, dialog, death, ending.
-import { TITLE, SUBTITLE, INTRO, QUESTS, ENDINGS, DIALOGS } from '../data/story.js';
+import { TITLE, SUBTITLE, INTRO, QUESTS, ENDINGS, DIALOGS, FIELD_GUIDE } from '../data/story.js';
 import { ITEMS, RECIPES, SHOP, WEAPONS } from '../data/items.js';
 import { LOCATIONS, locById } from '../data/world.js';
 import { worldToMap } from './mapgen.js';
@@ -222,6 +222,8 @@ export class UI {
         <div><span>Animals harvested</span><b>${st.harvested}</b></div><div><span>Bounties claimed</span><b>${st.bounties}</b></div>
         <div><span>Amber found</span><b>${st.amber}</b></div><div><span>Places discovered</span><b>${this.game.hud.discovered.size} / ${LOCATIONS.length}</b></div>
       </div>
+      <h3>Field Guide <small>${this.game.seen.size} / ${Object.keys(FIELD_GUIDE).length}</small></h3>
+      <div class="guide">${Object.entries(FIELD_GUIDE).map(([k, [n, d]]) => this.game.seen.has(k) ? `<div class="gd"><b>${n}</b><span>${d}</span></div>` : `<div class="gd unk"><b>Unknown species</b><span>Get a closer look to document it.</span></div>`).join('')}</div>
       <h3>Field Notes</h3><p class="notes">Herbivores flee from noise. Predators come to it.<br>Raptors hunt in packs and flank — keep your back to a wall.<br>Gallimimus can be calmed with bait. Approach crouched.<br>Dilophosaurs spit venom that blinds. Kill them fast or keep your distance.<br>The Tyrannosaur rules the eastern paddock. Don't run in a straight line.<br>The Infected came ashore with the freighter. Body shots barely slow them — aim for the head. They're faster at night.</p>
       </div></div>`;
   }
