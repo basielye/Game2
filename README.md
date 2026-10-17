@@ -73,6 +73,8 @@ Click the game to capture the mouse; **Esc** pauses. Xbox/PlayStation controller
 
 ## Graphics & performance
 
+![Graphics overhaul](docs/screens/graphics_overhaul.jpg)
+
 - **Atmosphere:** physically based Rayleigh/Mie sky (LUT), volumetric-looking self-shadowed clouds, sun/moon/stars, image-based ambient from the live sky, aerial perspective (height fog tinted by the sky) on every material.
 - **Lighting:** cascaded shadow maps, N8AO ambient occlusion, HDR pipeline with bloom, ACES tone mapping, eye adaptation for twilight and night, god rays, filmic grade.
 - **Terrain:** photographic texture arrays with height-based blending, anti-tiling, triplanar cliffs, macro variation and shoreline wetness.
