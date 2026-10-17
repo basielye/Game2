@@ -56,6 +56,8 @@ export function gltf(renderer, url) {
     const ktx2 = new KTX2Loader().setTranscoderPath(BASE + 'basis/').detectSupport(renderer);
     gltfLoader = new GLTFLoader().setKTX2Loader(ktx2).setMeshoptDecoder(MeshoptDecoder).setDRACOLoader(new DRACOLoader().setDecoderPath(BASE + 'draco/'));
   }
+  // hosts that can't serve .glb get JSON glTF with embedded buffers (tools/glb2json.py); the page opts in via __GLTF_EXT
+  if (typeof window !== 'undefined' && window.__GLTF_EXT) url = url.replace(/\.glb$/, '.' + window.__GLTF_EXT);
   return new Promise((res, rej) => gltfLoader.load(BASE + url, res, undefined, rej));
 }
 

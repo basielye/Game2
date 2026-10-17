@@ -26,6 +26,16 @@ function pbr(name, tile, opts = {}) {
   m.userData.boxMap = true;
   return m;
 }
+// Photographic terrain sets (albedo / normal+roughness) reused for stonework and turf.
+function photoMat(layer, tile, opts = {}) {
+  const tl = new THREE.TextureLoader();
+  const ld = (suf, srgb) => { const t = tl.load(`textures/${layer}_${suf}.webp`); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / tile, 1 / tile); t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };
+  const m = new THREE.MeshStandardMaterial({ map: ld('a', true), normalMap: ld('n', false), roughness: 1, ...opts });
+  m.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <roughnessmap_fragment>', 'float roughnessFactor = roughness * texture2D(normalMap, vNormalMapUv).a;'); };
+  m.customProgramCacheKey = () => 'build-pbr';
+  m.userData.boxMap = true;
+  return m;
+}
 function barkMat() {
   const tl = new THREE.TextureLoader();
   const ld = (f, srgb) => { const t = tl.load('textures/flora/' + f); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / 0.9, 1 / 0.9); t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };
@@ -58,7 +68,9 @@ function mats() {
     jeepRed: new THREE.MeshStandardMaterial({ color: 0xa02818, roughness: 0.5, metalness: 0.3 }),
     fire: new THREE.MeshBasicMaterial({ color: 0xffa040 }),
     emissiveWarm: new THREE.MeshStandardMaterial({ color: 0x332211, emissive: 0xffa050, emissiveIntensity: 1.3 }),
-    stone: new THREE.MeshStandardMaterial({ map: getTex('rock'), roughness: 0.95, color: 0xc8b8a0 }),
+    stone: photoMat('t5_rock', 2.5, { color: 0xd8cfc0 }),
+    ash: new THREE.MeshStandardMaterial({ color: 0x1c1916, roughness: 1 }),
+    turf: photoMat('t0_grass', 3.2),
     signWood: pbr('planks', 0.9, { color: 0xa08060 }),
   };
   return m;
@@ -159,8 +171,12 @@ export class Structures {
       log.rotation.z = Math.PI / 2.6; log.rotation.y = (i / 6) * Math.PI * 2;
       log.position.y = 0.2; g.add(log);
     }
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.18, 5, 10), M.stone);
-    ring.rotation.x = Math.PI / 2; ring.position.y = 0.08; g.add(ring);
+    for (let i = 0; i < 11; i++) {
+      const a = (i / 11) * Math.PI * 2 + this.rng() * 0.2;
+      const r = this.rock(0.17 + this.rng() * 0.08);
+      r.position.set(Math.cos(a) * 0.78, 0.06, Math.sin(a) * 0.78); r.rotation.set(this.rng() * 3, this.rng() * 3, this.rng() * 3); g.add(r);
+    }
+    const ash = new THREE.Mesh(new THREE.CircleGeometry(0.65, 16), M.ash); ash.rotation.x = -Math.PI / 2; ash.position.y = 0.02; ash.receiveShadow = true; g.add(ash);
     const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: getTex('glow'), color: 0xff9a40, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
     flame.scale.set(big ? 2.6 : 1.8, big ? 3.2 : 2.2, 1); flame.position.y = 0.9; g.add(flame);
     const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: getTex('glow'), color: 0xffe0a0, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
@@ -170,6 +186,23 @@ export class Structures {
     this.fires.push(wp);
     this.interactables.push({ pos: wp.clone(), radius: 2.5, label: 'Rest at campfire', action: 'campfire', id: 'fire' + this.fires.length });
     return g;
+  }
+
+  // Irregular rock: displaced icosahedron.
+  rock(size) {
+    const geo = new THREE.IcosahedronGeometry(size, 1);
+    const p = geo.attributes.position, v = new THREE.Vector3();
+    const seed = this.rng() * 100;
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i);
+      const n = Math.sin(v.x * 9 + seed) * Math.cos(v.y * 7 - seed) * Math.sin(v.z * 8 + seed * 0.5);
+      v.multiplyScalar(1 + n * 0.22).multiply(new THREE.Vector3(1.15, 0.7, 1));
+      p.setXYZ(i, v.x, v.y, v.z);
+    }
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, this.M.stone);
+    m.castShadow = true; m.receiveShadow = true;
+    return m;
   }
 
   // Light sources are virtual; a small pool of real PointLights is assigned to the nearest ones each frame.
@@ -331,6 +364,8 @@ export class Structures {
   crate(x, z, ry = 0, lootable = false, y = null, forceId = null) {
     const g = this.anchor(x, z, ry, y);
     this.box(g, 1, 0.8, 0.8, this.M.wood, 0, 0, 0);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) this.box(g, 0.07, 0.82, 0.07, this.M.trim, sx * 0.48, -0.01, sz * 0.38, 0, false);
+    for (const sz of [-1, 1]) for (const yy of [0.0, 0.74]) this.box(g, 1.02, 0.07, 0.07, this.M.trim, 0, yy, sz * 0.38, 0, false);
     if (lootable) {
       const lid = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.1, 0.85), this.M.yellow);
       lid.position.y = 0.85; lid.userData.dynamic = true; g.add(lid);
@@ -502,7 +537,18 @@ export class Structures {
     this.sign(vc, 'HAVEN', 0, 10.3, 10.5, '#ffd27a', 9);
     // banner inside: skeleton-like props (rex skull)
     const skull = new THREE.Mesh(new THREE.DodecahedronGeometry(1.6, 0), M.stone); skull.scale.set(1.6, 0.9, 0.8); skull.position.set(0, 5.2, -5); vc.add(skull);
-    for (let i = -2; i <= 2; i++) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 8.8, 8), M.concrete); p.position.set(i * 6, 4.4, 9.8); vc.add(p); }
+    // stone plinth band, timber columns and beams, mullioned glazing, entrance steps, eaves
+    this.box(vc, 35, 1.6, 21, M.stone, 0, -0.3, 0, 0, false);
+    for (let i = -2; i <= 2; i++) {
+      this.cyl(vc, 0.42, 0.5, 9.2, M.bark, i * 6.2, 0, 11.4, 12, true);
+      this.box(vc, 1.3, 0.5, 1.3, M.stone, i * 6.2, 0, 11.4, 0, false);
+    }
+    this.box(vc, 27, 0.7, 0.8, M.trim, 0, 8.6, 11.4, 0, false);
+    for (let k = -3; k <= 3; k++) this.box(vc, 0.12, 6, 0.14, M.trim, k * 1.1, 0, 10.4, 0, false);
+    this.box(vc, 7.8, 0.14, 0.16, M.trim, 0, 3.0, 10.4, 0, false);
+    for (let k = 0; k < 3; k++) this.box(vc, 10 - k * 1.2, 0.2, 1.1, M.stone, 0, -0.3 + k * 0.18, 12.6 - k * 0.6, 0, true, true);
+    for (const sx of [-1, 1]) for (let k = 0; k < 4; k++) win2(sx * (6 + k * 2.6), 4.6, 10.31);
+    function win2(x, y, z) { const w = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 3.2), M.windowDark); w.position.set(x, y, z); vc.add(w); }
 
     // Main street: two rows of western buildings facing each other along the road (z axis).
     const names = [['GENERAL STORE', 'store'], ['SALOON', 'saloon'], ["MARSHAL", 'marshal'], ['DOCTOR', 'doctor'], ['GUNSMITH', 'gunsmith'], ['STABLES', 'stables']];
@@ -599,10 +645,17 @@ export class Structures {
     const g = this.anchor(L.x, L.z, -0.4, L.h);
     // half-buried concrete bunker with a steel door
     this.box(g, 9, 3.4, 7, M.concrete, 0, -0.4, 0);
-    const mound = new THREE.Mesh(new THREE.SphereGeometry(6.5, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ map: getTex('grass'), roughness: 1 }));
-    mound.scale.set(1.25, 0.5, 1.1); mound.position.set(0, 0.2, -2.6); mound.receiveShadow = true; g.add(mound);
+    // earth-covered roof: displaced turf mound
+    const mg = new THREE.SphereGeometry(6.5, 40, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+    { const p = mg.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const n = Math.sin(v.x * 1.3) * Math.cos(v.z * 1.1) * 0.35 + Math.sin(v.x * 3.1 + v.z * 2.3) * 0.12; v.addScaledVector(v.clone().normalize(), n); p.setXYZ(i, v.x, v.y, v.z); } mg.computeVertexNormals(); }
+    const mound = new THREE.Mesh(mg, M.turf);
+    mound.scale.set(1.25, 0.5, 1.1); mound.position.set(0, 0.2, -2.6); mound.receiveShadow = true; mound.castShadow = true; g.add(mound);
+    // blast-wall portal, steel door, sandbags
+    for (const sx of [-1, 1]) this.box(g, 0.8, 3.0, 1.6, M.concrete, sx * 1.6, -0.2, 4.2);
+    this.box(g, 4.0, 0.7, 1.6, M.concrete, 0, 2.5, 4.2, 0, false);
     const door = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.4, 0.15), M.rust); door.position.set(0, 1.2, 3.55); door.rotation.y = 0.0; g.add(door);
-    this.sign(g, 'RANGER STATION 4', 0, 2.75, 3.56, '#e8d8a0', 3.2);
+    for (let k = 0; k < 12; k++) { const sb = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.42, 3, 8), M.canvas); sb.rotation.z = Math.PI / 2; sb.rotation.y = (k % 6) * 0.05; sb.position.set(-3.6 - (k % 6) * 0.0, 0.17 + Math.floor(k / 6) * 0.3, 3.0 + (k % 6) * 0.62); sb.castShadow = true; g.add(sb); }
+    this.sign(g, 'RANGER STATION 4', 0, 2.75, 5.02, '#e8d8a0', 3.2);
     this.addFire(g, 3, 0, 7);
     this.crate(L.x - 4, L.z + 6, 0.4, true);
     this.tent(L.x + 8, L.z + 2, 0.3);
