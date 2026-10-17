@@ -57,6 +57,13 @@ class GradeEffect extends Effect {
   }
 }
 
+// HDR exposure (eye adaptation is driven from the game: brighter at twilight/night).
+class ExposureEffect extends Effect {
+  constructor() {
+    super('ExposureEffect', 'uniform float uExp;\nvoid mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) { outputColor = vec4(inputColor.rgb * uExp, inputColor.a); }', { uniforms: new Map([['uExp', new THREE.Uniform(1)]]) });
+  }
+}
+
 export class Post {
   constructor(renderer, scene, camera) {
     this.renderer = renderer;
@@ -82,7 +89,8 @@ export class Post {
     this.tone = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
     this.gradeFx = new GradeEffect();
     this.smaa = new SMAAEffect({ preset: SMAAPreset.HIGH });
-    this.passHDR = new EffectPass(camera, this.bloom, this.tone);
+    this.exposureFx = new ExposureEffect();
+    this.passHDR = new EffectPass(camera, this.exposureFx, this.bloom, this.tone);
     this.passLDR = new EffectPass(camera, this.gradeFx, this.smaa);
     this.composer.addPass(this.passHDR);
     this.composer.addPass(this.passLDR);
@@ -90,6 +98,7 @@ export class Post {
     this.u = {};
     for (const [k, v] of this.gradeFx.uniforms) this.u[k] = v;
     this.exposure = 1;
+    this.u.uExp = this.exposureFx.uniforms.get('uExp');
   }
   setSize(w, h, pr) {
     this.renderer.setPixelRatio(pr);

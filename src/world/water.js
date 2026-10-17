@@ -92,8 +92,9 @@ void main(){
   // water body: Beer-Lambert absorption over depth; light from the sky dome and sun
   float light = clamp(uSunDir.y * 1.5 + 0.15, 0.03, 1.0);
   vec3 irr = skyUp * 0.6 + uSunColor * light * 0.35;
-  vec3 absorb = exp(-depth * vec3(0.38, 0.11, 0.075));
-  vec3 shallow = vec3(0.10, 0.42, 0.40), deep = vec3(0.006, 0.05, 0.075);
+  // lakes: tannin-stained and murkier than the clear tropical sea
+  vec3 absorb = exp(-depth * mix(vec3(0.38, 0.11, 0.075), vec3(0.75, 0.32, 0.26), inland));
+  vec3 shallow = mix(vec3(0.10, 0.42, 0.40), vec3(0.05, 0.13, 0.09), inland), deep = mix(vec3(0.006, 0.05, 0.075), vec3(0.008, 0.025, 0.02), inland);
   vec3 body = mix(deep, shallow, absorb.g) * irr;
   // sun-lit sub-surface scatter through wave crests
   float sss = pow(max(dot(V, -uSunDir) * 0.5 + 0.5, 0.0), 4.0) * (vFoamCrest + 0.15);
@@ -114,7 +115,7 @@ void main(){
   foam += smoothstep(0.7, 0.95, vFoamCrest) * smoothstep(0.45, 0.7, foamN) * 0.5;
   col = mix(col, irr * 1.4, clamp(foam, 0.0, 1.0));
 
-  float alpha = clamp(1.0 - absorb.g * 0.85 + fres * 0.4 + foam, 0.0, 1.0);
+  float alpha = clamp(1.0 - absorb.g * mix(0.85, 0.6, inland) + fres * 0.4 + foam, 0.0, 1.0);
   alpha = max(alpha * smoothstep(0.0, 0.25, depth), 0.04);
   gl_FragColor = vec4(col, alpha);
   #ifdef USE_FOG

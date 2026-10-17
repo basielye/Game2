@@ -325,7 +325,7 @@ export class Atmosphere {
     const useMoon = e < -0.04;
     const ldir = useMoon ? this.moonDir : this.sunDir;
     const dayI = 4.2 * smoothstep(-0.04, 0.12, e) * Math.min(1, lum * 1.4 + 0.2);
-    const intensity = (useMoon ? 0.22 : dayI) * (1 - storm * 0.8);
+    const intensity = (useMoon ? 0.3 : dayI) * (1 - storm * 0.8);
     const color = useMoon ? new THREE.Color(0.55, 0.65, 0.95) : sunCol;
     if (this.csm) {
       this.csm.lightDirection.copy(ldir).negate();

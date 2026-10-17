@@ -713,6 +713,11 @@ class Game {
       u.uRays.value = facing > 0 && sd.y > -0.02 ? onScreen * smoothstep(0, 0.5, facing) * smoothstep(-0.02, 0.12, sd.y) * (1 - this.storm) * 0.9 : 0;
       u.uSunCol.value.copy(this.atmo.uniforms.uSunColor.value);
     } else u.uRays.value = 0;
+    // eye adaptation: open up through twilight into moonlit night, slightly under storms
+    const se = this.atmo.sunDir.y;
+    const expT = (1 + (1 - smoothstep(-0.3, 0.02, se)) * 2.0) * (1 + this.storm * 0.25);
+    this._exp = this._exp ? damp(this._exp, expT, 1.5, realDt) : expT;
+    if (u.uExp) u.uExp.value = this._exp;
   }
 
   updateEntities(dt) {
