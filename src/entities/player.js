@@ -272,6 +272,12 @@ export class Player extends Entity {
     this.vy -= 20 * dt;
     this.pos.y += this.vy * dt;
     G.colliders.resolve(this.pos, this.radius, this.height);
+    // the open sea: strong currents turn the ranger back
+    const rr = Math.hypot(this.pos.x, this.pos.z);
+    if (rr > 1050) {
+      this.pos.x *= 1050 / rr; this.pos.z *= 1050 / rr;
+      if (!this._currentT || performance.now() - this._currentT > 5000) { this._currentT = performance.now(); G.hud?.toast('The currents are too strong. Turn back.', 'danger'); }
+    }
     const terrainY = T.getHeight(this.pos.x, this.pos.z);
     const floorY = G.colliders.floorAt(this.pos.x, this.pos.y, this.pos.z);
     let ground = Math.max(terrainY, floorY);

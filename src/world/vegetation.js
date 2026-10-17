@@ -49,6 +49,26 @@ function makeMaterials() {
   return { bark, palmBark, leaf, frond, conifer, farLeaf, rock };
 }
 
+// Far-LOD canopy: a handful of large crossed leaf cards (cheap, but keeps a leafy silhouette).
+function impostorCanopy(center, size, rng) {
+  const parts = [];
+  const w = Math.max(size.x, size.z) * 1.05, h = size.y * 1.1;
+  for (let i = 0; i < 3; i++) {
+    const g = new THREE.PlaneGeometry(w, h);
+    g.rotateY((i / 3) * Math.PI + rng() * 0.3);
+    parts.push(g);
+  }
+  const top = new THREE.PlaneGeometry(w * 0.9, w * 0.9); top.rotateX(-Math.PI / 2); top.translate(0, h * 0.18, 0); parts.push(top);
+  const g = merge(parts);
+  g.translate(center.x, center.y, center.z);
+  const pa = g.attributes.position, na = g.attributes.normal;
+  for (let k = 0; k < pa.count; k++) {
+    const n = new THREE.Vector3(pa.getX(k) - center.x, (pa.getY(k) - center.y) + h * 0.4, pa.getZ(k) - center.z).normalize();
+    na.setXYZ(k, n.x, n.y, n.z);
+  }
+  return g;
+}
+
 // ---------- species builders: each returns {near:[{geo, mat}], far:[{geo,mat}]} ----------
 function buildPalm(M, rng) {
   const h = 9 + rng() * 3, lean = 1.5 + rng() * 2;
@@ -98,11 +118,9 @@ function buildJungle(M, rng, big = false) {
   const bb = new THREE.Box3();
   for (const k of clusters) bb.expandByPoint(k.c.clone().addScalar(k.r * 0.8)).expandByPoint(k.c.clone().subScalar(k.r * 0.8));
   const cs = bb.getSize(new THREE.Vector3()), cc = bb.getCenter(new THREE.Vector3());
-  const farLeaves = blob(1, 1, rng, 1, 0.18);
-  farLeaves.scale(cs.x * 0.55, cs.y * 0.5, cs.z * 0.55); farLeaves.translate(cc.x, cc.y, cc.z);
-  colorize(farLeaves, 0.2 + rng() * 0.05, 0.33 + rng() * 0.07, 0.12);
+  const farLeaves = impostorCanopy(cc, cs, rng);
   const farTrunk = taperTube(curve, 2, 4, (t) => r0 * (1 - t * 0.6));
-  return { near: [{ geo: merge(woods), mat: M.bark }, { geo: leaves, mat: M.leaf }], far: [{ geo: farTrunk, mat: M.bark }, { geo: farLeaves, mat: M.farLeaf }], radius: r0 * 0.9 };
+  return { near: [{ geo: merge(woods), mat: M.bark }, { geo: leaves, mat: M.leaf }], far: [{ geo: farTrunk, mat: M.bark }, { geo: farLeaves, mat: M.leaf }], radius: r0 * 0.9 };
 }
 
 function buildTreeFern(M, rng) {

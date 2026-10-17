@@ -95,14 +95,16 @@ const builders = {
   rock() {
     const nz = makeTileNoise(37);
     return gen(512, (u, v, o) => {
-      const n = fbmTile(nz, u, v, 3, 7, 0.55);
-      const cr = Math.abs(fbmTile(nz, u + 0.3, v * 1.6, 6, 4) - 0.5);
-      const crack = cr < 0.03 ? 0.55 : 1;
-      const strata = 0.5 + 0.5 * Math.sin((v + n * 0.2) * 40);
-      const t = n * 0.8 + strata * 0.2;
-      o[0] = c255(mix(70, 150, t) * crack);
-      o[1] = c255(mix(66, 140, t) * crack);
-      o[2] = c255(mix(60, 128, t) * crack);
+      const n = fbmTile(nz, u, v, 4, 7, 0.55);
+      const m = fbmTile(nz, u + 0.37, v + 0.11, 8, 5, 0.5);
+      const crev = Math.pow(1 - Math.abs(m - 0.5) * 2, 10);       // many thin crevices
+      const lichen = Math.max(0, fbmTile(nz, u + 0.7, v + 0.3, 6, 4) - 0.58) * 2.2;
+      const strata = 0.5 + 0.5 * Math.sin((v * 6 + n * 2.5) * Math.PI * 2);
+      const t = n * 0.75 + strata * 0.12 + m * 0.13;
+      const dark = 1 - crev * 0.45;
+      o[0] = c255((mix(78, 150, t) * dark) - lichen * 10);
+      o[1] = c255((mix(72, 140, t) * dark) + lichen * 8);
+      o[2] = c255((mix(64, 126, t) * dark) - lichen * 18);
     });
   },
   sand() {

@@ -307,7 +307,9 @@ vec3 sampleAntiTile(sampler2D t, vec2 uv){ return mix(texture2D(t, uv).rgb, text
   vec3 sand = sampleAntiTile(tSand, wuv*0.9);
   vec3 ash = sampleAntiTile(tAsh, wuv);
   vec3 an = abs(normalize(vWNorm));
-  vec3 rockX = texture2D(tRock, vWPos.zy/14.0).rgb, rockZ = texture2D(tRock, vWPos.xy/14.0).rgb, rockY = texture2D(tRock, vWPos.xz/14.0).rgb;
+  vec3 rockX = mix(texture2D(tRock, vWPos.zy/6.0).rgb, texture2D(tRock, vWPos.zy/23.0).rgb, 0.45);
+  vec3 rockZ = mix(texture2D(tRock, vWPos.xy/6.0).rgb, texture2D(tRock, vWPos.xy/23.0).rgb, 0.45);
+  vec3 rockY = mix(texture2D(tRock, vWPos.xz/6.0).rgb, texture2D(tRock, vWPos.xz/23.0).rgb, 0.45);
   vec3 bw = pow(an, vec3(4.0)); bw /= (bw.x+bw.y+bw.z);
   vec3 rock = rockX*bw.x + rockY*bw.y + rockZ*bw.z;
   float n1 = tNoise(vWPos.xz*0.35);
