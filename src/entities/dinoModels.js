@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { RigBuilder, limb, ellipsoid } from './rig.js';
 import { getTex } from '../core/textures.js';
 import { noise } from '../core/noise.js';
+import { fuseOrganic, roundCone, ellipsoidPrim } from './dinoSkin.js';
 
 // Spine control points: [z, y, halfWidth, halfHeight]. Bones: [name, z] (z must lie within spine range).
 export const SPECIES = {
@@ -92,7 +93,59 @@ export const SPECIES = {
 let skinMat = null;
 function dinoMaterial() {
   if (!skinMat) {
-    skinMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.0, normalMap: getTex('scales'), normalScale: new THREE.Vector2(0.55, 0.55) });
+    // tileable reptile skin (tools/bake/gen_dino_skin.py): grey detail albedo with cavity, normal + roughness(A)
+    const tl = new THREE.TextureLoader();
+    const det = tl.load('textures/dino_a.webp'), nrm = tl.load('textures/dino_n.webp');
+    for (const t of [det, nrm]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.repeat.set(1.5, 1.5); }
+    skinMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0.0, map: det, normalMap: nrm, normalScale: new THREE.Vector2(0.9, 0.9) });
+    skinMat.onBeforeCompile = (s) => {
+      s.vertexShader = s.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vObjP, vObjN, vAxX, vAxY, vAxZ;')
+        .replace('#include <defaultnormal_vertex>', `#include <defaultnormal_vertex>
+          vObjP = position; vObjN = normal;
+          #ifdef USE_SKINNING
+            vAxX = normalMatrix * (skinMatrix * vec4(1.0, 0.0, 0.0, 0.0)).xyz;
+            vAxY = normalMatrix * (skinMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz;
+            vAxZ = normalMatrix * (skinMatrix * vec4(0.0, 0.0, 1.0, 0.0)).xyz;
+          #else
+            vAxX = normalMatrix * vec3(1.0, 0.0, 0.0); vAxY = normalMatrix * vec3(0.0, 1.0, 0.0); vAxZ = normalMatrix * vec3(0.0, 0.0, 1.0);
+          #endif`);
+      s.fragmentShader = s.fragmentShader
+        .replace('#include <common>', `#include <common>
+          varying vec3 vObjP, vObjN, vAxX, vAxY, vAxZ;
+          // triplanar in bind-pose object space, so the skin sticks to the animal while it animates
+          vec3 triW(vec3 n) { vec3 w = pow(abs(n), vec3(4.0)); return w / (w.x + w.y + w.z); }
+          vec4 triTex(sampler2D t, vec3 p, vec3 w) { return texture2D(t, p.zy) * w.x + texture2D(t, p.xz) * w.y + texture2D(t, p.xy) * w.z; }
+          vec3 triNormal(sampler2D t, vec3 p, vec3 n, vec3 w, float s, out float rough) {
+            vec4 a = texture2D(t, p.zy), b = texture2D(t, p.xz), c = texture2D(t, p.xy);
+            rough = a.a * w.x + b.a * w.y + c.a * w.z;
+            vec3 tx = a.xyz * 2.0 - 1.0, ty = b.xyz * 2.0 - 1.0, tz = c.xyz * 2.0 - 1.0;
+            tx.xy *= s; ty.xy *= s; tz.xy *= s;
+            tx = vec3(tx.xy + n.zy, abs(tx.z) * n.x);
+            ty = vec3(ty.xy + n.xz, abs(ty.z) * n.y);
+            tz = vec3(tz.xy + n.xy, abs(tz.z) * n.z);
+            return normalize(tx.zyx * w.x + ty.xzy * w.y + tz.xyz * w.z);
+          }`)
+        .replace('#include <map_fragment>', `
+          vec3 oN = normalize(vObjN);
+          vec3 tw = triW(oN);
+          vec3 tp = vObjP * 0.85;
+          float detA = triTex(map, tp, tw).r, detB = triTex(map, tp * 3.3, tw).r;
+          diffuseColor.rgb *= mix(1.0, (detA * 0.65 + detB * 0.35) * 1.55, 0.9);`)
+        .replace('#include <roughnessmap_fragment>', `
+          float rA, rB;
+          vec3 nObjA = triNormal(normalMap, tp, oN, tw, normalScale.x, rA);
+          vec3 nObjB = triNormal(normalMap, tp * 3.3, oN, tw, normalScale.x * 0.7, rB);
+          vec3 nObj = normalize(nObjA + nObjB - oN);
+          float roughnessFactor = mix(rA, rB, 0.4);`)
+        .replace('#include <normal_fragment_maps>', `
+          normal = normalize(nObj.x * vAxX + nObj.y * vAxY + nObj.z * vAxZ) * faceDirection;`)
+        .replace('#include <opaque_fragment>', `
+          // thin-tissue light bleed (frills, throat, tail tips) + soft back-scatter
+          outgoingLight += diffuseColor.rgb * (reflectedLight.directDiffuse * vec3(0.16, 0.07, 0.04) + reflectedLight.indirectDiffuse * vec3(0.1, 0.06, 0.03));
+          #include <opaque_fragment>`);
+    };
+    skinMat.customProgramCacheKey = () => 'dino-skin';
   }
   return skinMat;
 }
@@ -191,9 +244,11 @@ export function buildDino(kind, scale = 1, tint = 0) {
     out.copy(belly).lerp(back, THREE.MathUtils.smoothstep(up, 0.35, 0.75));
     const z = p.z / sc, x = p.x / sc, y = p.y / sc;
     let pat = 0;
-    if (C.pattern === 'stripes') pat = Math.sin(z * 9 / Math.max(0.4, S.hind.thigh * 1.6)) > 0.35 ? 1 : 0;
-    else if (C.pattern === 'spots') pat = noise.noise2(z * 6 / S.hind.thigh, (y + x) * 6 / S.hind.thigh) > 0.45 ? 1 : 0;
-    else pat = noise.noise2(z * 1.8, (y + x) * 1.8) * 0.5 + 0.5 > 0.62 ? 0.7 : 0;
+    const ss = THREE.MathUtils.smoothstep;
+    const wob = noise.noise2(z * 3.1 / S.hind.thigh, y * 3.1 / S.hind.thigh) * 0.35;
+    if (C.pattern === 'stripes') pat = ss(Math.sin(z * 9 / Math.max(0.4, S.hind.thigh * 1.6) + wob * 2.5), 0.15, 0.55);
+    else if (C.pattern === 'spots') pat = ss(noise.noise2(z * 6 / S.hind.thigh, (y + x) * 6 / S.hind.thigh), 0.3, 0.6);
+    else pat = ss(noise.noise2(z * 1.8, (y + x) * 1.8) * 0.5 + 0.5 + wob * 0.3, 0.52, 0.72) * 0.7;
     pat *= THREE.MathUtils.smoothstep(up, 0.55, 0.85);
     out.lerp(stripe, pat * 0.75);
     const grit = noise.noise2(z * 13, y * 13 + x * 7) * 0.08;
@@ -201,7 +256,7 @@ export function buildDino(kind, scale = 1, tint = 0) {
   };
 
   // ---- body tube with smooth chain weights ----
-  const rings = 56, radial = 16;
+  const rings = 84, radial = 24;
   const pos = [], uv = [], idx = [];
   const ringZ = [];
   let arc = 0, prev = null;
@@ -268,7 +323,9 @@ export function buildDino(kind, scale = 1, tint = 0) {
     add(chain[owner].index, wo);
     return [...W.entries()].slice(0, 4);
   };
+  R.organic = true;
   R.skinned(body, weightFn, skinColor);
+  R.organic = false;
 
   const dark = new THREE.Color(C.back).multiplyScalar(0.7);
   const legBase = back.clone().lerp(belly, 0.12).multiplyScalar(0.9);
@@ -281,6 +338,7 @@ export function buildDino(kind, scale = 1, tint = 0) {
   // ---- legs ----
   for (const lg of legs) {
     const L = lg.L;
+    R.organic = true;
     const thigh = limb(L.thigh * sc, L.r * sc * (lg.front ? 1 : 1.25), L.r * 0.6 * sc, 10, 5, lg.front ? 0.05 : 0.25);
     R.rigid(thigh, lg.hip, legColor);
     if (!lg.front && L.foot !== 'elephant') {
@@ -292,6 +350,7 @@ export function buildDino(kind, scale = 1, tint = 0) {
     R.rigid(ellipsoid(L.r * 0.44 * sc, L.r * 0.44 * sc, L.r * 0.44 * sc, 8, 6), lg.ankle, legColor);
     R.rigid(limb(L.shin * sc, L.r * 0.62 * sc, L.r * 0.42 * sc, 8, 4), lg.knee, legColor);
     R.rigid(limb(L.meta * sc, L.r * 0.4 * sc, L.r * 0.34 * sc, 7, 3), lg.ankle, legColor);
+    R.organic = false;
     if (L.foot === 'claw') {
       for (const tx of [-1, 0, 1]) {
         const t = limb(L.r * 1.5 * sc, L.r * 0.18 * sc, L.r * 0.1 * sc, 5, 2);
@@ -314,8 +373,10 @@ export function buildDino(kind, scale = 1, tint = 0) {
   }
   for (const ar of arms) {
     const A = S.arms;
+    R.organic = true;
     R.rigid(limb(A.len * 0.5 * sc, A.r * 1.3 * sc, A.r * sc, 6, 3), ar.sh, legColor);
     R.rigid(limb(A.len * 0.5 * sc, A.r * sc, A.r * 0.7 * sc, 6, 3), ar.el, legColor);
+    R.organic = false;
     for (const k of [-1, 1]) { const c = new THREE.ConeGeometry(A.r * 0.35 * sc, A.r * 2 * sc, 4); c.rotateX(Math.PI + 0.5); c.translate(k * A.r * 0.4 * sc, -A.len * 0.55 * sc, A.r * 0.4 * sc); R.rigid(c, ar.el, claw); }
   }
   // ---- head details ----
@@ -420,6 +481,40 @@ export function buildDino(kind, scale = 1, tint = 0) {
       const q = new THREE.ConeGeometry(0.02 * sc, 0.16 * sc, 4); q.rotateX(-0.9); q.translate(0, (p[1] + p[3] * 0.95) * sc, z * sc);
       R.skinned(q, weightFn, 0x3a2a18);
     }
+  }
+  // ---- fuse body + limbs into one organic surface (SDF + marching cubes) ----
+  {
+    const prims = [];
+    const wp = (b, x = 0, y = 0, z = 0) => b.localToWorld(new THREE.Vector3(x, y, z));
+    for (let i = 0; i < samples.length - 1; i++) {
+      const [z, y, w, h] = samples[i];
+      const nx = samples[Math.min(samples.length - 2, i + 1)], pv = samples[Math.max(0, i - 1)];
+      const T = new THREE.Vector3(0, nx[1] - pv[1], nx[0] - pv[0]).normalize();
+      const N = new THREE.Vector3(0, T.z, -T.y);
+      const seg = Math.hypot(nx[0] - pv[0], nx[1] - pv[1]) * 0.5;
+      const m = Math.min(w, h);
+      if (m < 0.004) continue;
+      prims.push(ellipsoidPrim(new THREE.Vector3(0, y * sc, z * sc), N, T, w * sc, h * sc, Math.max(seg * 1.6, m * 0.7) * sc, m * 0.35 * sc));
+    }
+    for (const lg of legs) {
+      const L = lg.L, r = L.r * sc;
+      const hip = wp(lg.hip), knee = wp(lg.knee), ankle = wp(lg.ankle), toe = wp(lg.toe);
+      const fr = lg.front ? 1.0 + Math.max(0, 0.3 - L.r) * 2.2 : 1.25;
+      prims.push(roundCone(hip, knee, r * fr, r * 0.6 * (lg.front ? fr : 1), r * 0.8));
+      if (!lg.front && L.foot !== 'elephant') {
+        const T = knee.clone().sub(hip); T.x = 0; T.normalize();
+        prims.push(ellipsoidPrim(hip.clone().lerp(knee, 0.3), new THREE.Vector3(0, T.z, -T.y), T, r * 1.2, r * 1.35, L.thigh * 0.5 * sc, r * 0.6));
+      }
+      prims.push(roundCone(knee, ankle, r * 0.6, r * 0.42, r * 0.3));
+      prims.push(roundCone(ankle, toe, r * 0.4, r * 0.32, r * 0.2));
+    }
+    for (const ar of arms) {
+      const A = S.arms, r = A.r * sc;
+      const sh = wp(ar.sh), el = wp(ar.el), hand = wp(ar.el, 0, -A.len * 0.5 * sc, 0);
+      prims.push(roundCone(sh, el, r * 1.3, r, r * 0.9));
+      prims.push(roundCone(el, hand, r, r * 0.7, r * 0.3));
+    }
+    fuseOrganic(R, prims, sc, kind, skinColor);
   }
   // bounds
   const len = (S.spine[S.spine.length - 1][0] - S.spine[0][0]) * sc;

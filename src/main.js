@@ -33,6 +33,7 @@ import { loadTerrainTextures } from './core/assets.js';
 import { loadPhotoscans } from './world/photoscans.js';
 import { buildFlora, foliageUniforms } from './world/flora.js';
 import { loadHumans, updateHumanLODs } from './entities/humanoid.js';
+import { buildDino } from './entities/dinoModels.js';
 
 const QUALITY = {
   low: { pr: 0.75, shadow: 1024, extent: 60, treeShadows: false, grassRadius: 28, grassDensity: 0.5, lod: 0.6, lights: 3, fog: 0.0012, csm: 0 },
@@ -111,6 +112,7 @@ class Game {
       this.pickups = new Pickups(this);
       this.scene.add(this.pickups.group);
     });
+    await step(0.7, 'Sculpting dinosaurs…', () => { for (const k of Object.keys(SPECIES)) { try { buildDino(k, 1, 0).mesh.geometry.dispose(); } catch (e) { console.warn('dino prewarm', k, e); } } });
     await step(0.72, 'Hatching dinosaurs…', () => {
       this.fx = new FX(this.scene, this);
       this.combat = new Combat(this);

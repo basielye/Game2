@@ -5,19 +5,50 @@ import { mulberry32 } from '../core/noise.js';
 import { locById, LOCATIONS } from '../data/world.js';
 import { merge, mergeGeometries } from './geom.js';
 
+// Procedural PBR sets (tools/bake/gen_building_textures.py): albedo with baked AO, normal RGB + roughness in A.
+// UVs are generated in metres (see boxUV), so texture.repeat = 1 / tile size keeps every surface at true scale.
+const _texCache = {};
+function buildTex(name, tile, srgb) {
+  const key = name + srgb;
+  if (_texCache[key]) return _texCache[key];
+  const t = new THREE.TextureLoader().load(`textures/build/${name}_${srgb ? 'a' : 'n'}.webp`);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(1 / tile, 1 / tile);
+  t.anisotropy = 8;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  return (_texCache[key] = t);
+}
+function pbr(name, tile, opts = {}) {
+  const m = new THREE.MeshStandardMaterial({ map: buildTex(name, tile, true), normalMap: buildTex(name, tile, false), roughness: 1, metalness: 0, ...opts });
+  m.normalScale.set(1, -1);
+  m.onBeforeCompile = (s) => { s.fragmentShader = s.fragmentShader.replace('#include <roughnessmap_fragment>', 'float roughnessFactor = roughness * texture2D(normalMap, vNormalMapUv).a;'); };
+  m.customProgramCacheKey = () => 'build-pbr';
+  m.userData.boxMap = true;
+  return m;
+}
+function barkMat() {
+  const tl = new THREE.TextureLoader();
+  const ld = (f, srgb) => { const t = tl.load('textures/flora/' + f); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / 0.9, 1 / 0.9); t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };
+  const m = new THREE.MeshStandardMaterial({ map: ld('bark_pine_color.jpg', true), normalMap: ld('bark_pine_normal.jpg'), roughnessMap: ld('bark_pine_roughness.jpg'), aoMap: null, color: 0xb0a090 });
+  m.userData.boxMap = true;
+  return m;
+}
+
 function mats() {
-  const planks = getTex('planks');
-  const concrete = getTex('concrete');
-  const metal = getTex('metal');
   const m = {
-    wood: new THREE.MeshStandardMaterial({ map: planks, roughness: 0.85 }),
-    darkWood: new THREE.MeshStandardMaterial({ map: planks, roughness: 0.9, color: 0x6a5040 }),
-    concrete: new THREE.MeshStandardMaterial({ map: concrete, roughness: 0.92 }),
-    metal: new THREE.MeshStandardMaterial({ map: metal, roughness: 0.55, metalness: 0.6 }),
-    rust: new THREE.MeshStandardMaterial({ map: metal, roughness: 0.8, metalness: 0.3, color: 0xa06040 }),
-    thatch: new THREE.MeshStandardMaterial({ map: getTex('thatch'), roughness: 1 }),
-    roofRed: new THREE.MeshStandardMaterial({ color: 0x7a2c1e, roughness: 0.8 }),
-    roofGreen: new THREE.MeshStandardMaterial({ color: 0x2f4a32, roughness: 0.8 }),
+    wood: pbr('planks', 1.2),
+    darkWood: pbr('planks', 1.2, { color: 0x8a7060 }),
+    concrete: pbr('concrete', 2.4),
+    metal: pbr('metal', 1.2, { metalness: 0.55, color: 0xd0d0d0 }),
+    rust: pbr('metal', 1.2, { metalness: 0.3, color: 0xa86a48 }),
+    thatch: pbr('shingles', 1.6),
+    roofRed: pbr('metal', 1.2, { metalness: 0.35, color: 0xa04a36 }),
+    roofGreen: pbr('metal', 1.2, { metalness: 0.35, color: 0x5e7a5c }),
+    bark: barkMat(),
+    trim: pbr('planks', 1.2, { color: 0x6a5444 }),
+    shutter: pbr('planks', 0.8, { color: 0x6f7f74 }),
+    barrel: pbr('planks', 0.9, { color: 0x9a7050 }),
+    windowDark: new THREE.MeshStandardMaterial({ color: 0x141a1c, roughness: 0.05, metalness: 0.6 }),
     glass: new THREE.MeshStandardMaterial({ color: 0x9ec6d0, roughness: 0.08, metalness: 0.2, transparent: true, opacity: 0.35 }),
     canvas: new THREE.MeshStandardMaterial({ map: getTex('cloth'), color: 0xc8b48a, roughness: 1, side: THREE.DoubleSide }),
     canvasRed: new THREE.MeshStandardMaterial({ map: getTex('cloth'), color: 0x8a2b20, roughness: 1, side: THREE.DoubleSide }),
@@ -26,11 +57,37 @@ function mats() {
     jeepBody: new THREE.MeshStandardMaterial({ color: 0x9a8e66, roughness: 0.5, metalness: 0.3 }),
     jeepRed: new THREE.MeshStandardMaterial({ color: 0xa02818, roughness: 0.5, metalness: 0.3 }),
     fire: new THREE.MeshBasicMaterial({ color: 0xffa040 }),
-    emissiveWarm: new THREE.MeshStandardMaterial({ color: 0x332211, emissive: 0xffb060, emissiveIntensity: 2.5 }),
+    emissiveWarm: new THREE.MeshStandardMaterial({ color: 0x332211, emissive: 0xffa050, emissiveIntensity: 1.3 }),
     stone: new THREE.MeshStandardMaterial({ map: getTex('rock'), roughness: 0.95, color: 0xc8b8a0 }),
-    signWood: new THREE.MeshStandardMaterial({ map: planks, color: 0x8a6a3a, roughness: 0.9 }),
+    signWood: pbr('planks', 0.9, { color: 0xa08060 }),
   };
   return m;
+}
+
+// UVs in metres from object-space position: walls get (along, up), floors/roofs (x, z).
+const _sc = new THREE.Vector3();
+function boxUV(g, scale) {
+  const p = g.attributes.position, n = p.count;
+  const uv = new Float32Array(n * 2);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), fn = new THREE.Vector3();
+  for (let i = 0; i < n; i += 3) {
+    a.fromBufferAttribute(p, i).multiply(scale); b.fromBufferAttribute(p, i + 1).multiply(scale); c.fromBufferAttribute(p, i + 2).multiply(scale);
+    fn.subVectors(c, b).cross(b.clone().sub(a));
+    const ax = Math.abs(fn.x), ay = Math.abs(fn.y), az = Math.abs(fn.z);
+    for (let k = 0; k < 3; k++) {
+      const v = k === 0 ? a : k === 1 ? b : c;
+      let u, w;
+      if (ay >= ax && ay >= az) { u = v.x; w = v.z; } else if (ax >= az) { u = v.z; w = v.y; } else { u = v.x; w = v.y; }
+      uv[(i + k) * 2] = u; uv[(i + k) * 2 + 1] = w;
+    }
+  }
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+}
+// Cylinder/cone default UVs (0..1 around, 0..1 up) → metres.
+function metreUV(g, circ, hgt, off) {
+  const uv = g.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * circ + off, uv.getY(i) * hgt);
+  g.userData.uvMetres = true;
 }
 
 export class Structures {
@@ -69,7 +126,9 @@ export class Structures {
   }
 
   cyl(parent, r0, r1, hgt, mat, x, y, z, seg = 10, collide = true) {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, hgt, seg), mat);
+    const cg = new THREE.CylinderGeometry(r0, r1, hgt, seg);
+    metreUV(cg, Math.PI * 2 * Math.max(r0, r1), hgt, 0);
+    const m = new THREE.Mesh(cg, mat);
     m.position.set(x, y + hgt / 2, z);
     m.castShadow = true; m.receiveShadow = true;
     parent.add(m);
@@ -133,8 +192,11 @@ export class Structures {
     const M = this.M;
     const g = this.anchor(x, z, ry, opts.y);
     const wallMat = opts.mat || M.wood;
-    const t = 0.25;
-    // floor
+    const trim = M.trim;
+    const t = 0.22;
+    const nb = (w_, h_, d_, m, x_, y_, z_, r = 0) => this.box(g, w_, h_, d_, m, x_, y_, z_, r, false);
+    // stone footing + plank floor
+    this.box(g, w + 0.1, 0.45, d + 0.1, M.stone, 0, -0.35, 0, 0, false);
     this.box(g, w, 0.3, d, M.darkWood, 0, -0.1, 0, 0, true, true);
     // walls with door gap on front (+z)
     this.box(g, w, hgt, t, wallMat, 0, 0, -d / 2);
@@ -145,30 +207,102 @@ export class Structures {
     this.box(g, sideW, hgt, t, wallMat, -w / 2 + sideW / 2, 0, d / 2);
     this.box(g, sideW, hgt, t, wallMat, w / 2 - sideW / 2, 0, d / 2);
     this.box(g, doorW, hgt - 2.4, t, wallMat, 0, 2.4, d / 2, 0, false);
-    // windows (dark glass insets)
+    // timber frame: corner posts, sill and top plates
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) nb(0.26, hgt + 0.05, 0.26, trim, sx * w / 2, 0, sz * d / 2);
+    for (const sz of [-1, 1]) { nb(w + 0.1, 0.16, t + 0.08, trim, 0, 0.12, sz * d / 2); nb(w + 0.1, 0.18, t + 0.08, trim, 0, hgt - 0.18, sz * d / 2); }
+    for (const sx of [-1, 1]) { nb(t + 0.08, 0.16, d, trim, sx * w / 2, 0.12, 0); nb(t + 0.08, 0.18, d, trim, sx * w / 2, hgt - 0.18, 0); }
+    // door frame + half-open door
+    for (const sx of [-1, 1]) nb(0.14, 2.45, 0.32, trim, sx * (doorW / 2 + 0.07), 0, d / 2);
+    nb(doorW + 0.42, 0.16, 0.34, trim, 0, 2.4, d / 2);
+    const door = this.box(g, 0.9, 2.3, 0.07, M.darkWood, -doorW / 2 + 0.45, 0.02, d / 2 - 0.2, 0, false);
+    door.rotation.y = -1.1; door.position.x = -doorW / 2 + 0.2; door.position.z = d / 2 - 0.45;
+    // windows: frame, sill, cross mullion, shutters; glass reads dark or warmly lit
+    const win = (wx, wy, wz, ry2) => {
+      const wg = new THREE.Group(); wg.position.set(wx, wy, wz); wg.rotation.y = ry2; g.add(wg);
+      const add = (geo, m, px, py, pz, rz = 0) => { const me = new THREE.Mesh(geo, m); me.position.set(px, py, pz); me.rotation.z = rz; me.castShadow = true; me.receiveShadow = true; wg.add(me); return me; };
+      const glass = add(new THREE.PlaneGeometry(1.0, 1.15), opts.lit ? M.emissiveWarm : M.windowDark, 0, 0, t / 2 + 0.02);
+      glass.castShadow = false;
+      add(new THREE.BoxGeometry(1.24, 0.1, 0.12), trim, 0, 0.62, t / 2 + 0.05);
+      add(new THREE.BoxGeometry(1.36, 0.08, 0.22), trim, 0, -0.62, t / 2 + 0.08);
+      for (const sx of [-1, 1]) add(new THREE.BoxGeometry(0.1, 1.3, 0.12), trim, sx * 0.57, 0, t / 2 + 0.05);
+      add(new THREE.BoxGeometry(0.04, 1.15, 0.05), trim, 0, 0, t / 2 + 0.04);
+      add(new THREE.BoxGeometry(1.0, 0.04, 0.05), trim, 0, 0.05, t / 2 + 0.04);
+      if (this.rng() < 0.75) for (const sx of [-1, 1]) {
+        const sh = add(new THREE.BoxGeometry(0.52, 1.25, 0.05), M.shutter, sx * 0.9, 0, t / 2 + 0.06);
+        if (this.rng() < 0.2) { sh.rotation.z = sx * 0.3; sh.position.y -= 0.1; }
+      }
+    };
+    for (const sx of [-1, 1]) win(sx * Math.min(w / 4 + 0.3, w / 2 - 1.0), 1.75, d / 2, 0);
+    for (const sx of [-1, 1]) if (d > 5) win(sx * w / 2, 1.75, 0, sx * Math.PI / 2);
+    if (w > 7) win(0, 1.75, -d / 2, Math.PI);
+    // gable roof (ridge along x), corrugated iron with overhang, gable-end infill and fascia
+    const pitch = 0.42, ov = 0.55;
+    const run = d / 2 + ov, rise = Math.tan(pitch) * (d / 2);
+    const slab = Math.hypot(run, Math.tan(pitch) * run);
+    for (const sz of [-1, 1]) {
+      const r = new THREE.Mesh(new THREE.BoxGeometry(w + ov * 2, 0.08, slab), opts.roof || M.roofRed);
+      r.position.set(0, hgt + rise / 2 + 0.06 + Math.tan(pitch) * ov * 0.5 - Math.tan(pitch) * ov * 0.5, sz * (run / 2 - ov / 2) + sz * ov / 2 - sz * ov / 2);
+      r.position.z = sz * (slab * Math.cos(pitch)) / 2 - sz * 0.0;
+      r.position.y = hgt + rise - Math.tan(pitch) * Math.abs(r.position.z) + 0.04;
+      r.rotation.x = sz * pitch; r.castShadow = true; r.receiveShadow = true; g.add(r);
+      const fas = new THREE.Mesh(new THREE.BoxGeometry(w + ov * 2, 0.22, 0.05), trim);
+      fas.position.set(0, hgt + rise - Math.tan(pitch) * run - 0.05, sz * run); fas.castShadow = true; g.add(fas);
+    }
+    const ridge = new THREE.Mesh(new THREE.BoxGeometry(w + ov * 2 + 0.05, 0.12, 0.3), M.metal); ridge.position.set(0, hgt + rise + 0.07, 0); g.add(ridge);
+    const gable = new THREE.Shape(); gable.moveTo(-d / 2, 0); gable.lineTo(d / 2, 0); gable.lineTo(0, rise); gable.closePath();
     for (const sx of [-1, 1]) {
-      const win = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.9), opts.lit ? M.emissiveWarm : M.glass);
-      win.position.set(sx * (w / 4 + 0.3), 1.7, d / 2 + t / 2 + 0.01); g.add(win);
+      const ge = new THREE.Mesh(new THREE.ExtrudeGeometry(gable, { depth: t, bevelEnabled: false }), wallMat);
+      ge.rotation.y = Math.PI / 2; ge.position.set(sx * w / 2 - t / 2, hgt, 0); ge.castShadow = true; ge.receiveShadow = true; g.add(ge);
     }
-    // false front (western facade)
+    // false front (western facade) with stepped parapet and cornice
     if (opts.facade) {
-      this.box(g, w + 0.4, 1.8, 0.3, wallMat, 0, hgt, d / 2, 0, false);
+      const fh = rise + 1.4;
+      nb(w + 0.3, fh, 0.24, wallMat, 0, hgt, d / 2 + 0.02);
+      nb(w * 0.45, 0.6, 0.24, wallMat, 0, hgt + fh, d / 2 + 0.02);
+      nb(w + 0.6, 0.16, 0.42, trim, 0, hgt + fh - 0.05, d / 2 + 0.06);
+      nb(w * 0.45 + 0.3, 0.14, 0.4, trim, 0, hgt + fh + 0.58, d / 2 + 0.06);
+      for (let i = 0; i < Math.floor(w / 0.9); i++) nb(0.12, 0.2, 0.08, trim, -w / 2 + 0.45 + i * 0.9, hgt + fh - 0.25, d / 2 + 0.17);
+      for (const sx of [-1, 1]) nb(0.28, fh + 0.05, 0.3, trim, sx * (w / 2 + 0.05), hgt, d / 2 + 0.04);
     }
-    // roof
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 0.8, 0.2, d + 0.8), opts.roof || M.roofRed);
-    roof.position.set(0, hgt + 0.3, 0); roof.rotation.x = 0.06; roof.castShadow = true; roof.receiveShadow = true; g.add(roof);
-    // porch
+    // porch: deck, square posts with knee braces, railing, lean-to roof, steps
     if (opts.porch !== false) {
-      this.box(g, w, 0.25, 2.4, M.darkWood, 0, -0.05, d / 2 + 1.2, 0, true, true);
-      for (const sx of [-w / 2 + 0.2, w / 2 - 0.2, 0.0]) if (sx !== 0 || w > 9) this.cyl(g, 0.1, 0.1, hgt - 0.3, M.darkWood, sx, 0, d / 2 + 2.2, 6);
-      const awning = new THREE.Mesh(new THREE.BoxGeometry(w, 0.12, 2.6), M.darkWood);
-      awning.position.set(0, hgt - 0.2, d / 2 + 1.25); awning.rotation.x = 0.15; awning.castShadow = true; g.add(awning);
+      const pd = 2.4, pz = d / 2 + pd / 2;
+      this.box(g, w + 0.2, 0.22, pd, M.darkWood, 0, -0.02, pz, 0, true, true);
+      nb(w + 0.3, 0.2, 0.18, trim, 0, -0.1, d / 2 + pd);
+      const ph = hgt - 0.35;
+      const xs = []; const nPost = Math.max(2, Math.round(w / 3.2) + 1);
+      for (let i = 0; i < nPost; i++) xs.push(-w / 2 + 0.15 + (i / (nPost - 1)) * (w - 0.3));
+      for (const px of xs) {
+        nb(0.18, ph, 0.18, trim, px, 0.18, d / 2 + pd - 0.15);
+        nb(0.08, 0.08, 0.7, trim, px, ph - 0.35, d / 2 + pd - 0.5).rotation.x = 0.8;
+      }
+      for (let i = 0; i < xs.length - 1; i++) {
+        const mid = (xs[i] + xs[i + 1]) / 2, len = xs[i + 1] - xs[i] - 0.18;
+        if (Math.abs(mid) < 1.2) continue; // gap for the steps
+        nb(len, 0.08, 0.08, trim, mid, 1.0, d / 2 + pd - 0.15);
+        nb(len, 0.06, 0.06, trim, mid, 0.55, d / 2 + pd - 0.15);
+        for (let k = 1; k < Math.floor(len / 0.35); k++) nb(0.05, 0.45, 0.05, trim, xs[i] + 0.09 + k * 0.35, 0.55, d / 2 + pd - 0.15);
+      }
+      nb(w + 0.4, 0.2, 0.16, trim, 0, ph + 0.15, d / 2 + pd - 0.15);
+      const pr = new THREE.Mesh(new THREE.BoxGeometry(w + 0.6, 0.07, pd + 0.5), opts.roof || M.roofRed);
+      pr.position.set(0, ph + 0.42, pz + 0.1); pr.rotation.x = 0.16; pr.castShadow = true; pr.receiveShadow = true; g.add(pr);
+      for (let k = 0; k < 2; k++) this.box(g, 2.2, 0.16, 0.4, M.darkWood, 0, -0.32 - k * 0.18, d / 2 + pd + 0.2 + k * 0.38, 0, true, true);
+      // clutter: barrels and a crate on the deck
+      if (this.rng() < 0.8) { const bx = (this.rng() < 0.5 ? -1 : 1) * (w / 2 - 0.6); this.barrel(g, bx, 0.2, d / 2 + 0.7); if (this.rng() < 0.6) this.barrel(g, bx - Math.sign(bx) * 0.75, 0.2, d / 2 + 0.6); }
+      if (this.rng() < 0.5) nb(0.7, 0.6, 0.7, M.darkWood, (this.rng() < 0.5 ? -1 : 1) * (w / 2 - 1.8), 0.2, d / 2 + 0.6, this.rng());
     }
-    if (opts.sign) this.sign(g, opts.sign, 0, hgt + 0.9, d / 2 + 0.25, opts.signColor);
+    if (opts.sign) this.sign(g, opts.sign, 0, hgt + (opts.facade ? 1.0 : 0.9), d / 2 + (opts.facade ? 0.17 : 0.25), opts.signColor);
     if (opts.lit) {
       this.light(g, 0, hgt * 0.6, 0, 0xffa860, 8, 12, { lamp: true });
     }
     return g;
+  }
+
+  barrel(parent, x, y, z) {
+    const M = this.M;
+    const b = this.cyl(parent, 0.3, 0.27, 0.9, M.barrel, x, y, z, 12, false);
+    for (const hy of [0.15, 0.75]) this.cyl(parent, 0.31, 0.31, 0.06, M.metal, x, y + hy, z, 12, false);
+    return b;
   }
 
   sign(parent, text, x, y, z, color = '#f3e2b0', w = 4.2) {
@@ -328,6 +462,7 @@ export class Structures {
       const wp = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
       const key = o.material.uuid + ':' + Math.floor(wp.x / 160) + ':' + Math.floor(wp.z / 160) + ':' + (o.castShadow ? 1 : 0);
       let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      if (o.material.userData.boxMap && !o.geometry.userData.uvMetres) boxUV(g, _sc.setFromMatrixScale(o.matrixWorld));
       g.applyMatrix4(o.matrixWorld);
       for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k);
       if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
@@ -407,15 +542,18 @@ export class Structures {
       if (Math.abs(deg - 90) < 8 || Math.abs(deg - 180) < 8 || Math.abs(deg - 330) < 9 || Math.abs(deg - 250) < 8) continue;
       const x = L.x + Math.cos(a) * R, z = L.z + Math.sin(a) * R;
       const hh = this.h(x, z);
-      const g = new THREE.CylinderGeometry(0.22, 0.26, 4.2 + this.rng() * 0.8, 5);
+      const ph = 4.2 + this.rng() * 0.8;
+      const g = new THREE.CylinderGeometry(0.22, 0.26, ph, 7, 3);
       g.translate(0, 2.1, 0);
-      const cone = new THREE.ConeGeometry(0.22, 0.6, 5); cone.translate(0, 4.6, 0);
+      metreUV(g, Math.PI * 2 * 0.24, ph, this.rng() * 5);
+      const cone = new THREE.ConeGeometry(0.22, 0.6, 7); cone.translate(0, 4.6, 0);
+      metreUV(cone, Math.PI * 2 * 0.22, 0.6, 0);
       const both = merge([g, cone]);
       both.translate(x, hh - 0.3, z);
       pal.push(both);
       this.colliders.addCircle(x, z, 0.4, hh - 1, hh + 5);
     }
-    const palMesh = new THREE.Mesh(merge(pal), M.darkWood); palMesh.castShadow = true; palMesh.receiveShadow = true; this.group.add(palMesh);
+    const palMesh = new THREE.Mesh(merge(pal), M.bark); palMesh.geometry.userData.uvMetres = true; palMesh.castShadow = true; palMesh.receiveShadow = true; this.group.add(palMesh);
     this.havenTowers = [];
     for (const [ax, az] of [[0, 1], [-1, 0], [0.866, -0.5], [-0.34, -0.94]]) {
       this.havenTowers.push(this.watchtower(L.x + ax * (R + 4) + az * 8, L.z + az * (R + 4) - ax * 8, 0).top);

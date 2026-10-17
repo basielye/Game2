@@ -56,6 +56,7 @@ export class RigBuilder {
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 2), 2));
     for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'color', 'skinIndex', 'skinWeight'].includes(k)) g.deleteAttribute(k);
+    g.userData.organic = !!this.organic;
     this.parts.push(g);
   }
   build(material, boundsRadius = 3, boundsCenter = new THREE.Vector3()) {
