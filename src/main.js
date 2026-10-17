@@ -32,6 +32,7 @@ import { patchScene, setCSM, fogUniforms } from './core/matpatch.js';
 import { loadTerrainTextures } from './core/assets.js';
 import { loadPhotoscans } from './world/photoscans.js';
 import { buildFlora, foliageUniforms } from './world/flora.js';
+import { loadHumans, updateHumanLODs } from './entities/humanoid.js';
 
 const QUALITY = {
   low: { pr: 0.75, shadow: 1024, extent: 60, treeShadows: false, grassRadius: 28, grassDensity: 0.5, lod: 0.6, lights: 3, fog: 0.0012, csm: 0 },
@@ -101,6 +102,7 @@ class Game {
     });
     await step(0.34, 'Loading photoscanned rock…', async () => { try { this.scans = await loadPhotoscans(renderer); } catch (e) { console.warn('photoscans unavailable', e); this.scans = null; } });
     await step(0.37, 'Growing rainforest trees…', async () => { try { this.flora = await buildFlora(renderer, q); } catch (e) { console.warn('flora fallback', e); this.flora = null; } });
+    await step(0.39, 'Casting the survivors…', async () => { try { await loadHumans(renderer, ['ava', 'settlerM', 'settlerF', 'marshal', 'raider', 'raiderF', 'crane', 'doctor', 'infected', 'infectedF']); } catch (e) { console.warn('humans fallback', e); } });
     await step(0.4, 'Growing the jungle…', () => { this.vegetation = new Vegetation(this.terrain, this.colliders, q, this.scans, this.flora); this.scene.add(this.vegetation.group); });
     await step(0.6, 'Building Haven…', () => {
       this.structures = new Structures(this.terrain, this.colliders);
@@ -680,6 +682,7 @@ class Game {
     this.water.update(dt, this.camera.position);
     windUniforms.uWind.value = 1 + this.storm * 1.5;
     foliageUniforms.uTime.value += dt;
+    updateHumanLODs(this.camera, this.settings.quality === "ultra" ? 1.5 : this.settings.quality === "low" ? 0.6 : 1);
     foliageUniforms.uWind.value = 1 + this.storm * 1.8;
     const ld = this.atmo.sunDir.y > -0.05 ? this.atmo.sunDir : this.atmo.moonDir;
     foliageUniforms.uSunView.value.copy(ld).transformDirection(this.camera.matrixWorldInverse);

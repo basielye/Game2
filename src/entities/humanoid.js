@@ -5,6 +5,123 @@ import { RigBuilder, limb, ellipsoid, setRot } from './rig.js';
 import { clamp, lerp, damp } from '../core/math.js';
 import { getTex } from '../core/textures.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { MeshoptSimplifier } from 'meshoptimizer';
+import { gltf as loadGLTF } from '../core/assets.js';
+
+// ---------------------------------------------------------------------------------------------
+// Baked characters: MakeHuman (CC0) bodies, clothes and hair, shaped and skinned offline to this
+// game's humanoid rig (see README credits). One shared 4K atlas, one draw call per character,
+// three index-only LODs sharing the same vertex buffers.
+const TEMPLATES = {};
+const LIVE = new Set();
+let humanMat = null;
+const LOD_RATIOS = [1, 0.3, 0.08];
+const LOD_DIST = [11, 30];
+
+function bakedMaterial(renderer) {
+  const tl = new THREE.TextureLoader();
+  const alb = tl.load('textures/humans_a.webp'), nrm = tl.load('textures/humans_n.webp');
+  alb.colorSpace = THREE.SRGBColorSpace;
+  for (const t of [alb, nrm]) { t.flipY = false; t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy()); }
+  const m = new THREE.MeshStandardMaterial({ map: alb, normalMap: nrm, vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 1, metalness: 0 });
+  m.userData.tint = new THREE.Color(1, 1, 1);
+  m.onBeforeCompile = function (s) {
+    s.uniforms.uClothTint = { value: this.userData.tint };
+    s.fragmentShader = s.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uClothTint;')
+      // vertex colour: rgb = authored tint, a = skin mask (must not feed alpha)
+      .replace('#include <color_fragment>', '#if defined(USE_COLOR_ALPHA)\n  float skinMask = vColor.a;\n  diffuseColor.rgb *= vColor.rgb * mix(uClothTint, vec3(1.0), skinMask);\n#else\n  float skinMask = 0.0;\n#endif')
+      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = texture2D(normalMap, vNormalMapUv).a;')
+      // cheap subsurface: red light bleeding through thin skin, softer terminator
+      .replace('#include <opaque_fragment>', 'outgoingLight += skinMask * diffuseColor.rgb * (reflectedLight.directDiffuse * vec3(0.32, 0.09, 0.05) + reflectedLight.indirectDiffuse * vec3(0.22, 0.07, 0.04));\n#include <opaque_fragment>');
+  };
+  m.customProgramCacheKey = () => 'baked-human';
+  return m;
+}
+
+export async function loadHumans(renderer, names) {
+  await MeshoptSimplifier.ready;
+  humanMat = bakedMaterial(renderer);
+  await Promise.all(names.map(async (n) => {
+    try {
+      const g = await loadGLTF(renderer, `models/humans/${n}.glb`);
+      let skinned = null;
+      g.scene.traverse((o) => { if (o.isSkinnedMesh) skinned = o; });
+      if (!skinned) return;
+      const geo = skinned.geometry;
+      // fold gltfpack's KHR_texture_transform back into the UVs (we use our own material)
+      const map = skinned.material.map;
+      const uv = geo.attributes.uv, out = new Float32Array(uv.count * 2);
+      const rp = map ? map.repeat : new THREE.Vector2(1, 1), of = map ? map.offset : new THREE.Vector2();
+      for (let i = 0; i < uv.count; i++) { out[i * 2] = uv.getX(i) * rp.x + of.x; out[i * 2 + 1] = uv.getY(i) * rp.y + of.y; }
+      geo.setAttribute('uv', new THREE.BufferAttribute(out, 2));
+      skinned.material.dispose(); map?.dispose();
+      skinned.material = humanMat;
+      // LODs: same vertex buffers, simplified index
+      const lods = [geo];
+      const idx = geo.index.array instanceof Uint32Array ? geo.index.array : new Uint32Array(geo.index.array);
+      const pos = new Float32Array(geo.attributes.position.count * 3);
+      for (let i = 0; i < geo.attributes.position.count; i++) { pos[i * 3] = geo.attributes.position.getX(i); pos[i * 3 + 1] = geo.attributes.position.getY(i); pos[i * 3 + 2] = geo.attributes.position.getZ(i); }
+      for (let l = 1; l < LOD_RATIOS.length; l++) {
+        const target = Math.floor((idx.length * LOD_RATIOS[l]) / 3) * 3;
+        const [o] = MeshoptSimplifier.simplify(idx, pos, 3, target, 0.02 * l);
+        const lg = new THREE.BufferGeometry();
+        for (const k of Object.keys(geo.attributes)) lg.setAttribute(k, geo.attributes[k]);
+        lg.setIndex(new THREE.BufferAttribute(o, 1));
+        lg.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 1.4);
+        lods.push(lg);
+      }
+      geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 1.4);
+      TEMPLATES[n] = { scene: g.scene, lods };
+    } catch (e) { console.warn('human model unavailable', n, e); }
+  }));
+}
+
+function buildBakedHuman(presetName, overrides) {
+  const T = TEMPLATES[presetName];
+  const P = HUMAN_PRESETS[presetName] || HUMAN_PRESETS.settlerM;
+  const root = SkeletonUtils.clone(T.scene);
+  let mesh = null;
+  const bones = {};
+  root.traverse((o) => { if (o.isSkinnedMesh) mesh = o; if (o.isBone) bones[o.name] = o; });
+  // per-character clothing variation via a material clone (same shader program)
+  if (overrides.top || overrides.pants) {
+    const m = humanMat.clone();
+    m.onBeforeCompile = humanMat.onBeforeCompile; m.customProgramCacheKey = humanMat.customProgramCacheKey;
+    const c = new THREE.Color(overrides.top ?? 0xb0a080);
+    const l = c.getHSL({}).l;
+    m.userData.tint = new THREE.Color(1, 1, 1).lerp(c.multiplyScalar(0.55 / Math.max(l, 0.1)), 0.45);
+    mesh.material = m;
+  }
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  mesh.frustumCulled = true;
+  for (const b of Object.values(bones)) { b.userData.rest = b.quaternion.clone(); b.userData.restPos = b.position.clone(); }
+  mesh.userData.bones = bones;
+  // the clone root carries the skeleton; expose it as the rig mesh so callers can add it to a group
+  root.userData.bones = bones;
+  const side = {};
+  for (const [k, sx] of [['L', 1], ['R', -1]]) side[k] = { shoulder: bones['shoulder' + k], arm: bones['arm' + k], elbow: bones['elbow' + k], hand: bones['hand' + k], thigh: bones['thigh' + k], knee: bones['knee' + k], foot: bones['foot' + k], sx };
+  const braid = P.braid && bones.braid1 ? [bones.braid1, bones.braid2, bones.braid3] : null;
+  const rig = { mesh: root, skinned: mesh, lods: T.lods, lod: 0, bones, side, braid, s: (P.height || 1.75) / 1.75, female: !!P.female, preset: presetName };
+  rig.anim = { zombie: 0, phase: 0, speed: 0, crouch: 0, aim: 0, aimPitch: 0, weapon: 'none', air: 0, swim: 0, mounted: 0, dead: 0, melee: -1, draw: 0, reload: 0, look: 0, lookPitch: 0, hurt: 0, t: 0, braidV: 0, sit: 0, wave: 0, lean: 0, interact: 0 };
+  LIVE.add(rig);
+  return rig;
+}
+
+// Swap index-only LODs by camera distance (cheap: no vertex re-upload).
+const _hp = new THREE.Vector3();
+export function updateHumanLODs(camera, bias = 1) {
+  for (const rig of LIVE) {
+    if (!rig.mesh.parent) { rig.orphan = (rig.orphan || 0) + 1; if (rig.orphan > 300) LIVE.delete(rig); continue; }
+    rig.orphan = 0;
+    rig.skinned.getWorldPosition(_hp);
+    const d = _hp.distanceTo(camera.position) / bias;
+    const l = d < LOD_DIST[0] ? 0 : d < LOD_DIST[1] ? 1 : 2;
+    if (l !== rig.lod) { rig.lod = l; rig.skinned.geometry = rig.lods[l]; }
+  }
+}
+
 
 let sharedMat = null;
 function humanMaterial() {
@@ -26,6 +143,11 @@ export const HUMAN_PRESETS = {
 };
 
 export function buildHuman(presetName, overrides = {}) {
+  if (TEMPLATES[presetName]) return buildBakedHuman(presetName, overrides);
+  return buildProceduralHuman(presetName, overrides);
+}
+
+function buildProceduralHuman(presetName, overrides = {}) {
   const P = { ...HUMAN_PRESETS[presetName], ...overrides };
   const R = new RigBuilder();
   const s = P.height / 1.75;
