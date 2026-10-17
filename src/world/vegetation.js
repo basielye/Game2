@@ -220,12 +220,12 @@ export class Vegetation {
       }
     };
     add('palm', buildPalm, 3, { nearDist: 190, farDist: 900, shadow: true, nearCap: 2500, farCap: 6000 });
-    add('jungle', (M, r) => buildJungle(M, r, false), 3, { nearDist: 170, farDist: 900, shadow: true, nearCap: 3000, farCap: 9000 });
+    add('jungle', (M, r) => buildJungle(M, r, false), 3, { nearDist: 170, farDist: 900, shadow: true, nearCap: 3500, farCap: 11000 });
     add('jungleBig', (M, r) => buildJungle(M, r, true), 2, { nearDist: 210, farDist: 1000, shadow: true, nearCap: 1500, farCap: 4000 });
     add('treefern', buildTreeFern, 2, { nearDist: 120, farDist: 160, shadow: true, nearCap: 3000, farCap: 1000 });
     add('conifer', buildConifer, 2, { nearDist: 170, farDist: 1000, shadow: true, nearCap: 2000, farCap: 6000 });
-    add('bush', buildBush, 3, { nearDist: 90, farDist: 0, shadow: false, nearCap: 5000, farCap: 0 });
-    add('fern', buildFern, 2, { nearDist: 70, farDist: 0, shadow: false, nearCap: 6000, farCap: 0 });
+    add('bush', buildBush, 3, { nearDist: 90, farDist: 0, shadow: false, nearCap: 6500, farCap: 0 });
+    add('fern', buildFern, 2, { nearDist: 70, farDist: 0, shadow: false, nearCap: 8000, farCap: 0 });
     add('rock', (M, r) => buildRock(M, r, 1.4), 2, { nearDist: 200, farDist: 700, shadow: true, nearCap: 2500, farCap: 4000 });
     add('boulder', (M, r) => buildRock(M, r, 4.5), 2, { nearDist: 300, farDist: 1000, shadow: true, nearCap: 800, farCap: 2000 });
     this.speciesIdx = {};
@@ -286,11 +286,11 @@ export class Vegetation {
         continue;
       }
       const dens = smoothstep(-0.12, 0.25, forest);
-      if (r < 0.22 * dens) this._put(pickVar('jungle'), px, pz, rot, 0.8 + rng() * 0.5);
-      else if (r < 0.28 * dens) this._put(pickVar('jungleBig'), px, pz, rot, 0.8 + rng() * 0.4);
-      else if (r < 0.38 * dens) this._put(pickVar('treefern'), px, pz, rot, 0.8 + rng() * 0.5);
-      else if (r < 0.42 * dens + 0.02) this._put(pickVar('palm'), px, pz, rot, 0.8 + rng() * 0.3);
-      else if (r < 0.46) this._put(pickVar('rock'), px, pz, rot, 0.5 + rng());
+      if (r < 0.28 * dens) this._put(pickVar('jungle'), px, pz, rot, 0.8 + rng() * 0.5);
+      else if (r < 0.35 * dens) this._put(pickVar('jungleBig'), px, pz, rot, 0.8 + rng() * 0.4);
+      else if (r < 0.47 * dens) this._put(pickVar('treefern'), px, pz, rot, 0.8 + rng() * 0.5);
+      else if (r < 0.52 * dens + 0.02) this._put(pickVar('palm'), px, pz, rot, 0.8 + rng() * 0.3);
+      else if (r < 0.56) this._put(pickVar('rock'), px, pz, rot, 0.5 + rng());
     }
     // understory pass (bushes + ferns), denser, small
     const step2 = 3.6;
@@ -301,7 +301,7 @@ export class Vegetation {
       const forest = noise.fbm(px * 0.0045 + 40, pz * 0.0045 - 12, 4);
       const r = rng();
       const dens = smoothstep(-0.2, 0.3, forest);
-      if (r > 0.36 * dens + 0.015) continue;
+      if (r > 0.46 * dens + 0.02) continue;
       if (T.slope(px, pz) > 0.35 || keepOut(px, pz)) continue;
       this._put(pickVar(rng() < 0.45 ? 'bush' : 'fern'), px, pz, rng() * 6.28, 0.7 + rng() * 0.6);
     }

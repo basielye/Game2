@@ -19,7 +19,9 @@ npm run build && npm run preview
 ```
 
 Requires a WebGL2 browser (Chrome, Edge, Firefox, Safari 15+). Headphones recommended.
-Click the game to capture the mouse; **Esc** pauses.
+Click the game to capture the mouse; **Esc** pauses. Xbox/PlayStation controllers work out of the box (menus included).
+
+**Deploy:** `npm run build` produces a static `dist/` folder with relative paths — upload it to itch.io, any static host, or enable GitHub Pages (a ready workflow lives in `.github/workflows/deploy.yml`; it builds on pushes to `main`).
 
 ## Controls
 
@@ -43,6 +45,8 @@ Click the game to capture the mouse; **Esc** pauses.
 | **X** *(hold)* | Walk slowly |
 | **Tab · M · J** | Satchel & crafting · Map · Journal |
 
+**Gamepad:** sticks move/look · LT aim · RT fire · A jump · B crouch · X interact/reload · Y mount · LB/RB weapons · L3 sprint · R3 Dead Eye · D-pad whistle/bandage/eat/lantern · View satchel · Menu pause.
+
 ## What's in the game
 
 **A living island** — a 2.2 km procedurally sculpted island (volcanic Mount Sibo, a brachiosaur lake, jungle, meadows, beaches) with a full day/night cycle, dynamic storms, god rays, moonlit nights, fireflies, wind-swept grass and ocean swell.
@@ -63,6 +67,8 @@ Click the game to capture the mouse; **Esc** pauses.
 
 **Story campaign** (8 missions, ~2–3 hours) — from waking up in Ranger Bunker 4, through liberating Black Fang outposts, restoring power to the fences and climbing Mount Sibo to make radio contact with another colony, to a showdown at Crane's Hollow and a final choice at the dock. Free roam continues after the ending.
 
+**Field Guide & onboarding** — every species is documented the first time you get a good look at it; one-time contextual hints teach gathering, crafting, stealth, Dead Eye and riding exactly when they first matter.
+
 **Survival systems** — gathering (wood, fiber, flint, herbs, berries, amber), crafting (bow, arrows, venom arrows, bandages, bait, tonics, hide upgrades), hunting and harvesting, cooking at campfires, sleeping, trading, bounties, collectibles, fast travel, autosave.
 
 ## Graphics & performance
@@ -71,6 +77,7 @@ Click the game to capture the mouse; **Esc** pauses.
 - Instanced vegetation with LOD and view culling; a pooled light system; static batching for buildings; one skinned draw call per creature.
 - Post: MSAA, bloom, ACES tone mapping, god rays, split-tone grading, vignette, film grain, Dead Eye sepia.
 - Four quality presets (Low → Ultra) plus **adaptive resolution** that automatically trades pixels for framerate on weaker laptops.
+- Game logic costs ~1 ms per frame; vegetation streaming ~2 ms per rebuild; typical scenes are 150–300 draw calls.
 
 ## Zero assets
 
