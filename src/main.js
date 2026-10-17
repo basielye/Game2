@@ -28,12 +28,16 @@ import { DINO_DEFS } from './data/dinos.js';
 import { SPECIES } from './entities/dinoModels.js';
 import { clamp, damp, rand, pick, smoothstep } from './core/math.js';
 import { store } from './core/storage.js';
+import { patchScene, setCSM, fogUniforms } from './core/matpatch.js';
+import { loadTerrainTextures } from './core/assets.js';
+import { loadPhotoscans } from './world/photoscans.js';
+import { buildFlora, foliageUniforms } from './world/flora.js';
 
 const QUALITY = {
-  low: { pr: 0.75, shadow: 1024, extent: 60, treeShadows: false, grassRadius: 28, grassDensity: 0.5, lod: 0.6, lights: 3, fog: 0.0021 },
-  medium: { pr: 1, shadow: 2048, extent: 80, treeShadows: true, grassRadius: 42, grassDensity: 0.9, lod: 0.8, lights: 5, fog: 0.0017 },
-  high: { pr: 1.25, shadow: 2048, extent: 100, treeShadows: true, grassRadius: 55, grassDensity: 1.3, lod: 1, lights: 7, fog: 0.0015 },
-  ultra: { pr: 2, shadow: 4096, extent: 120, treeShadows: true, grassRadius: 70, grassDensity: 1.8, lod: 1.25, lights: 8, fog: 0.0013 },
+  low: { pr: 0.75, shadow: 1024, extent: 60, treeShadows: false, grassRadius: 28, grassDensity: 0.5, lod: 0.6, lights: 3, fog: 0.0012, csm: 0 },
+  medium: { pr: 1, shadow: 2048, extent: 80, treeShadows: true, grassRadius: 42, grassDensity: 0.9, lod: 0.8, lights: 5, fog: 0.0012, csm: 2, csmSize: 1536, csmFar: 260 },
+  high: { pr: 1.25, shadow: 2048, extent: 100, treeShadows: true, grassRadius: 55, grassDensity: 1.3, lod: 1, lights: 7, fog: 0.0012, csm: 3, csmSize: 2048, csmFar: 320 },
+  ultra: { pr: 2, shadow: 4096, extent: 120, treeShadows: true, grassRadius: 70, grassDensity: 1.8, lod: 1.25, lights: 8, fog: 0.0012, csm: 4, csmSize: 2048, csmFar: 650, midShadows: true },
 };
 
 const DEFAULT_SETTINGS = { quality: 'medium', renderScale: 1, adaptive: true, difficulty: 'normal', sensitivity: 1, fov: 62, invertY: false, master: 0.8, music: 0.55, sfx: 1, showFps: false };
@@ -71,8 +75,8 @@ class Game {
     const renderer = (this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false }));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.95;
+    renderer.toneMapping = THREE.NoToneMapping;
+    renderer.toneMappingExposure = 1.0;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.info.autoReset = false;
     this.scene = new THREE.Scene();
@@ -82,16 +86,22 @@ class Game {
     this.hud = new HUD(this);
     this.hud.show(false);
 
-    const step = async (p, text, fn) => { this.ui.loading(p, text); await nextFrame(); fn(); };
+    const step = async (p, text, fn) => { this.ui.loading(p, text); await nextFrame(); await fn(); };
     await step(0.05, 'Raising the island from the sea…', () => { this.terrain = new Terrain(); this.colliders = new Colliders(); });
+    await step(0.18, 'Loading photographic terrain…', async () => { this.terrain.textures = await loadTerrainTextures(q.lod >= 1 ? 1024 : 512); });
     await step(0.25, 'Painting the sky…', () => {
-      this.atmo = new Atmosphere(this.scene, renderer);
+      this.atmo = new Atmosphere(this.scene, renderer, this.camera);
       this.atmo.setShadowQuality(q.shadow, q.extent);
+      this.atmo.enableCSM(q.csm, q.csmSize, q.csmFar);
+      setCSM(this.atmo.csm);
+      fogUniforms.uSkyLUT.value = this.atmo.lutRT.texture;
       this.scene.add(this.terrain.buildMesh(q));
       this.water = new Water(this.terrain, this.atmo);
       this.scene.add(this.water.group);
     });
-    await step(0.4, 'Growing the jungle…', () => { this.vegetation = new Vegetation(this.terrain, this.colliders, q); this.scene.add(this.vegetation.group); });
+    await step(0.34, 'Loading photoscanned rock…', async () => { try { this.scans = await loadPhotoscans(renderer); } catch (e) { console.warn('photoscans unavailable', e); this.scans = null; } });
+    await step(0.37, 'Growing rainforest trees…', async () => { try { this.flora = await buildFlora(renderer, q); } catch (e) { console.warn('flora fallback', e); this.flora = null; } });
+    await step(0.4, 'Growing the jungle…', () => { this.vegetation = new Vegetation(this.terrain, this.colliders, q, this.scans, this.flora); this.scene.add(this.vegetation.group); });
     await step(0.6, 'Building Haven…', () => {
       this.structures = new Structures(this.terrain, this.colliders);
       this.structures.initLightPool(q.lights);
@@ -125,6 +135,7 @@ class Game {
       for (let i = 0; i < 4; i++) this.population.spawnT = 0, this.population.updateEcosystem(2);
       this.atmo.time = 17.6;
       this.atmo.update(0.01, this.player.pos, this.camera.position);
+      patchScene(this.scene);
       renderer.compile(this.scene, this.camera);
     });
     addEventListener('resize', () => this.onResize());
@@ -668,10 +679,23 @@ class Game {
     this.atmo.update(dt, focus, this.camera.position);
     this.water.update(dt, this.camera.position);
     windUniforms.uWind.value = 1 + this.storm * 1.5;
+    foliageUniforms.uTime.value += dt;
+    foliageUniforms.uWind.value = 1 + this.storm * 1.8;
+    const ld = this.atmo.sunDir.y > -0.05 ? this.atmo.sunDir : this.atmo.moonDir;
+    foliageUniforms.uSunView.value.copy(ld).transformDirection(this.camera.matrixWorldInverse);
+    foliageUniforms.uSunCol.value.copy(this.atmo.uniforms.uSunColor.value).multiplyScalar(this.atmo.sunDir.y > -0.05 ? 0.9 : 0.04);
     this.vegetation.update(dt, this.camera.position, false, this.camera.getWorldDirection(this._camDir || (this._camDir = new THREE.Vector3())));
     this.structures.update(dt, performance.now() / 1000, this.camera.position, night);
     this.fx.update(dt, this.camera.position, this.storm, night);
     this.post.u.uNight.value = night;
+    fogUniforms.uFogSun.value.copy(this.atmo.sunDir.y > -0.05 ? this.atmo.sunDir : this.atmo.moonDir);
+    fogUniforms.uFogSunCol.value.copy(this.atmo.uniforms.uSunColor.value).multiplyScalar(this.atmo.sunDir.y > -0.05 ? 1 : 0.05);
+    fogUniforms.uFogDensity.value = 0.0011 * (1 + this.storm * 3) * (1 + night * 0.5);
+    fogUniforms.uHaze.value = 0.00011 * (1 + this.storm * 4);
+    this._patchT = (this._patchT || 0) - realDt;
+    if (this._patchT <= 0) { this._patchT = 1; patchScene(this.scene); }
+    const csm = this.atmo.csm;
+    if (csm && Math.abs((this._csmFov || 0) - this.camera.fov) > 0.6) { this._csmFov = this.camera.fov; csm.updateFrustums(); }
     // god rays toward the on-screen sun
     const u = this.post.u;
     if (this.settings.quality === 'high' || this.settings.quality === 'ultra') {

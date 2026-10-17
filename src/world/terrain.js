@@ -221,7 +221,7 @@ export class Terrain {
     }
     for (let cj = 0; cj < CHUNKS; cj++) for (let ci = 0; ci < CHUNKS; ci++) {
       const vcount = (per + 1) * (per + 1);
-      const pos = new Float32Array(vcount * 3), nor = new Float32Array(vcount * 3), uv = new Float32Array(vcount * 2), spl = new Float32Array(vcount * 4);
+      const pos = new Float32Array(vcount * 3), nor = new Float32Array(vcount * 3), uv = new Float32Array(vcount * 2), spl = new Float32Array(vcount * 4), spl2 = new Float32Array(vcount * 4);
       let allUnder = true;
       let v = 0;
       for (let j = 0; j <= per; j++) for (let i = 0; i <= per; i++) {
@@ -239,6 +239,9 @@ export class Terrain {
         const dv = Math.hypot(x + 90, z + 640);
         const ash = smoothstep(260, 120, dv) * smoothstep(60, 120, y);
         spl[v * 4] = road; spl[v * 4 + 1] = rock; spl[v * 4 + 2] = sand; spl[v * 4 + 3] = ash;
+        const fo = noise.fbm(x * 0.0045 + 40, z * 0.0045 - 12, 4);
+        spl2[v * 4] = smoothstep(-0.18, 0.1, fo) * (1 - this.flatMask[idx] * 0.8);
+        spl2[v * 4 + 1] = clamp(0.5 + noise.fbm(x * 0.008 - 3, z * 0.008 + 5, 3) * 1.2 - y * 0.004, 0, 1);
         v++;
       }
       if (allUnder && (ci === 0 || cj === 0 || ci === CHUNKS - 1 || cj === CHUNKS - 1)) {
@@ -256,6 +259,7 @@ export class Terrain {
       g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
       g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
       g.setAttribute('splat', new THREE.BufferAttribute(spl, 4));
+      g.setAttribute('splat2', new THREE.BufferAttribute(spl2, 4));
       g.setIndex(new THREE.BufferAttribute(idxArr, 1));
       g.computeBoundingSphere();
       g.computeBoundingBox();
@@ -274,65 +278,146 @@ export class Terrain {
   }
 
   _material(quality) {
-    const mat = new THREE.MeshStandardMaterial({
-      roughness: 0.92, metalness: 0,
-      normalMap: getTex('terrainNormal'),
-      normalScale: new THREE.Vector2(0.9, 0.9),
-    });
-    const uniforms = {
-      tGrass: { value: getTex('grass') }, tDirt: { value: getTex('dirt') }, tRock: { value: getTex('rock') },
-      tSand: { value: getTex('sand') }, tAsh: { value: getTex('ash') },
-    };
+    const mat = new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0 });
+    const tex = this.textures;
+    const uniforms = { tAlb: { value: tex.albedo }, tNrm: { value: tex.normal } };
+    const hq = quality.lod >= 1 ? 1 : 0;
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, uniforms);
       sh.vertexShader = sh.vertexShader
-        .replace('#include <common>', '#include <common>\nattribute vec4 splat;\nvarying vec4 vSplat;\nvarying vec3 vWPos;\nvarying vec3 vWNorm;')
-        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvSplat = splat;\nvWPos = (modelMatrix * vec4(transformed,1.0)).xyz;\nvWNorm = normal;');
+        .replace('#include <common>', '#include <common>\nattribute vec4 splat;\nattribute vec4 splat2;\nvarying vec4 vSplat;\nvarying vec4 vSplat2;\nvarying vec3 vWPos;\nvarying vec3 vWNorm;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvSplat = splat;\nvSplat2 = splat2;\nvWPos = (modelMatrix * vec4(transformed,1.0)).xyz;\nvWNorm = normalize(normal);');
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
-uniform sampler2D tGrass, tDirt, tRock, tSand, tAsh;
-varying vec4 vSplat; varying vec3 vWPos; varying vec3 vWNorm;
+precision highp sampler2DArray;
+uniform sampler2DArray tAlb, tNrm;
+varying vec4 vSplat; varying vec4 vSplat2; varying vec3 vWPos; varying vec3 vWNorm;
+#define HQ ${hq}
 float tHash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float tNoise(vec2 p){ vec2 i=floor(p); vec2 f=fract(p); f=f*f*(3.0-2.0*f);
   return mix(mix(tHash(i),tHash(i+vec2(1,0)),f.x), mix(tHash(i+vec2(0,1)),tHash(i+vec2(1,1)),f.x), f.y); }
-vec3 sampleAntiTile(sampler2D t, vec2 uv){ return mix(texture2D(t, uv).rgb, texture2D(t, uv*0.27 + 0.31).rgb, 0.45); }
+float tFbm(vec2 p){ return tNoise(p)*0.5 + tNoise(p*2.03+3.1)*0.3 + tNoise(p*4.1+7.7)*0.2; }
+// anti-tiling: blend two differently rotated/scaled lookups with a low-frequency noise mask
+vec4 sampA(float L, vec2 uv, float m) {
+  vec4 a = texture(tAlb, vec3(uv, L));
+  #if HQ
+    vec2 uv2 = mat2(0.8, -0.6, 0.6, 0.8) * uv * 0.71 + 0.37;
+    vec4 b = texture(tAlb, vec3(uv2, L));
+    return mix(a, b, smoothstep(0.35, 0.65, m));
+  #else
+    return a;
+  #endif
+}
+vec4 sampN(float L, vec2 uv, float m) {
+  vec4 a = texture(tNrm, vec3(uv, L));
+  #if HQ
+    vec2 uv2 = mat2(0.8, -0.6, 0.6, 0.8) * uv * 0.71 + 0.37;
+    vec4 b = texture(tNrm, vec3(uv2, L));
+    // rotate the second normal back into the first frame
+    b.xy = mat2(0.8, 0.6, -0.6, 0.8) * (b.xy * 2.0 - 1.0) * 0.5 + 0.5;
+    return mix(a, b, smoothstep(0.35, 0.65, m));
+  #else
+    return a;
+  #endif
+}
 `)
         .replace('#include <map_fragment>', `
-  vec2 wuv = vWPos.xz / 7.0;
-  float macro = tNoise(vWPos.xz*0.012) * 0.65 + tNoise(vWPos.xz*0.05)*0.35;
-  vec3 grass = sampleAntiTile(tGrass, wuv);
-  // lush/dry variation
-  grass *= mix(vec3(0.85,1.05,0.8), vec3(1.15,1.02,0.78), smoothstep(0.35,0.75, macro));
-  vec3 dirt = sampleAntiTile(tDirt, wuv*1.3);
-  vec3 sand = sampleAntiTile(tSand, wuv*0.9);
-  vec3 ash = sampleAntiTile(tAsh, wuv);
-  vec3 an = abs(normalize(vWNorm));
-  vec3 rockX = mix(texture2D(tRock, vWPos.zy/6.0).rgb, texture2D(tRock, vWPos.zy/23.0).rgb, 0.45);
-  vec3 rockZ = mix(texture2D(tRock, vWPos.xy/6.0).rgb, texture2D(tRock, vWPos.xy/23.0).rgb, 0.45);
-  vec3 rockY = mix(texture2D(tRock, vWPos.xz/6.0).rgb, texture2D(tRock, vWPos.xz/23.0).rgb, 0.45);
-  vec3 bw = pow(an, vec3(4.0)); bw /= (bw.x+bw.y+bw.z);
-  vec3 rock = rockX*bw.x + rockY*bw.y + rockZ*bw.z;
-  float n1 = tNoise(vWPos.xz*0.35);
-  vec3 col = grass;
-  float dirtAmt = smoothstep(0.55, 0.85, macro + n1*0.25) * 0.8;
-  col = mix(col, dirt, dirtAmt);
-  col = mix(col, ash, clamp(vSplat.w*1.4 + (n1-0.5)*0.4, 0.0, 1.0));
-  col = mix(col, sand, smoothstep(0.35, 0.65, vSplat.z + (n1-0.5)*0.35));
-  float roadA = smoothstep(0.25, 0.7, vSplat.x + (n1-0.5)*0.3);
-  col = mix(col, dirt*vec3(1.05,0.98,0.9), roadA);
-  float rockA = smoothstep(0.35, 0.65, vSplat.y + (n1-0.5)*0.3);
-  col = mix(col, rock, rockA);
-  // wet sand / shoreline darkening
-  float wet = 1.0 - smoothstep(-0.2, 1.1, vWPos.y);
-  col *= mix(1.0, 0.55, wet);
-  diffuseColor.rgb *= col * 1.08;
+  vec3 N = normalize(vWNorm);
+  vec2 xz = vWPos.xz;
+  float dist = length(vWPos - cameraPosition);
+  float macro = tFbm(xz * 0.011);
+  float m2 = tFbm(xz * 0.045 + 11.0);
+  float n1 = tNoise(xz * 0.35);
+  float slope = 1.0 - N.y;
+  float forest = vSplat2.x, moist = vSplat2.y;
+  float road = vSplat.x, rockS = vSplat.y, sandS = vSplat.z, ash = vSplat.w;
+  // base weights
+  float wRock = smoothstep(0.30, 0.62, rockS + (n1 - 0.5) * 0.25);
+  float wSand = smoothstep(0.3, 0.7, sandS + (m2 - 0.5) * 0.4) * (1.0 - wRock);
+  float wRoad = smoothstep(0.2, 0.75, road + (n1 - 0.5) * 0.3) * (1.0 - wRock);
+  float land = (1.0 - wRock) * (1.0 - wSand) * (1.0 - wRoad);
+  float wAsh = clamp(ash * 1.4 + (m2 - 0.5) * 0.3, 0.0, 1.0) * land;
+  land *= 1.0 - wAsh;
+  float wForest = land * smoothstep(0.25, 0.65, forest + (macro - 0.5) * 0.35);
+  float wGrass = land - wForest;
+  float wDirt = (wGrass + wForest) * smoothstep(0.62, 0.9, macro + n1 * 0.15) * 0.75 + wRoad * 0.55 + wRock * 0.0;
+  float wGravel = wRoad * 0.6 + wAsh * 0.25 + land * smoothstep(0.25, 0.45, slope) * 0.6;
+  float wRocks = wAsh + wSand * smoothstep(0.6, 0.85, m2) * 0.5;
+  wGrass *= 1.0 - smoothstep(0.3, 1.0, wDirt);
+  wForest *= 1.0 - smoothstep(0.3, 1.0, wDirt) * 0.6;
+  float W[7];
+  W[0] = wGrass; W[1] = wForest; W[2] = wDirt; W[3] = wGravel; W[4] = wSand; W[5] = wRock; W[6] = wRocks;
+  // per-layer tiling (metres per repeat)
+  float S[7];
+  S[0] = 3.2; S[1] = 3.6; S[2] = 2.8; S[3] = 2.4; S[4] = 4.0; S[5] = 9.0; S[6] = 5.5;
+  // distance: switch to a coarser repeat far away to kill tiling
+  float far = smoothstep(40.0, 160.0, dist);
+  vec4 alb[7]; vec4 nrm[7];
+  float best = 0.0;
+  float H[7];
+  for (int i = 0; i < 7; i++) {
+    H[i] = -1.0;
+    if (W[i] < 0.004 || i == 5) continue;
+    vec2 uv = xz / S[i];
+    vec4 a = sampA(float(i), uv, m2);
+    vec4 nn = sampN(float(i), uv, m2);
+    if (far > 0.01) {
+      vec4 af = texture(tAlb, vec3(uv * 0.23 + 0.5, float(i)));
+      vec4 nf = texture(tNrm, vec3(uv * 0.23 + 0.5, float(i)));
+      a = mix(a, af, far * 0.6); nn = mix(nn, nf, far * 0.6);
+    }
+    alb[i] = a; nrm[i] = nn;
+    H[i] = W[i] + a.a * 0.6;
+    best = max(best, H[i]);
+  }
+  // triplanar cliff rock
+  vec3 tw = pow(abs(N), vec3(5.0)); tw /= (tw.x + tw.y + tw.z);
+  vec4 rockA = vec4(0.0), rockN = vec4(0.5, 0.5, 1.0, 0.8);
+  vec3 rockWN = N;
+  if (W[5] >= 0.004) {
+    float sc = 1.0 / S[5];
+    vec4 ax = texture(tAlb, vec3(vWPos.zy * sc, 5.0)), ay = texture(tAlb, vec3(vWPos.xz * sc, 5.0)), az = texture(tAlb, vec3(vWPos.xy * sc, 5.0));
+    vec4 nx = texture(tNrm, vec3(vWPos.zy * sc, 5.0)), ny = texture(tNrm, vec3(vWPos.xz * sc, 5.0)), nz = texture(tNrm, vec3(vWPos.xy * sc, 5.0));
+    vec4 bx = texture(tAlb, vec3(vWPos.zy * sc * 0.31 + 0.2, 5.0));
+    rockA = ax * tw.x + ay * tw.y + az * tw.z;
+    rockA.rgb = mix(rockA.rgb, rockA.rgb * (bx.rgb * 1.6), 0.35);
+    rockN = vec4(0.0, 0.0, 0.0, nx.a * tw.x + ny.a * tw.y + nz.a * tw.z);
+    vec3 tX = nx.xyz * 2.0 - 1.0, tY = ny.xyz * 2.0 - 1.0, tZ = nz.xyz * 2.0 - 1.0;
+    tX = vec3(tX.xy + N.zy, abs(tX.z) * N.x);
+    tY = vec3(tY.xy + N.xz, abs(tY.z) * N.y);
+    tZ = vec3(tZ.xy + N.xy, abs(tZ.z) * N.z);
+    rockWN = normalize(tX.zyx * tw.x + tY.xzy * tw.y + tZ.xyz * tw.z);
+    alb[5] = rockA; nrm[5] = rockN;
+    H[5] = W[5] + rockA.a * 0.6;
+    best = max(best, H[5]);
+  }
+  // height blend: crisp, natural transitions (gravel peeks through grass, rock ledges hold sand)
+  vec3 col = vec3(0.0); vec3 wn = vec3(0.0); float rough = 0.0; float tot = 0.0;
+  for (int i = 0; i < 7; i++) {
+    if (H[i] < 0.0) continue;
+    float b = max(H[i] - best + 0.22, 0.0);
+    if (b <= 0.0) continue;
+    col += alb[i].rgb * b;
+    rough += nrm[i].a * b;
+    if (i == 5) wn += rockWN * b;
+    else { vec3 t = nrm[i].xyz * 2.0 - 1.0; wn += normalize(vec3(t.x, 0.0, t.y) * 1.15 + N * t.z) * b; }
+    tot += b;
+  }
+  col /= max(tot, 1e-4); rough /= max(tot, 1e-4); wn = normalize(wn / max(tot, 1e-4));
+  // macro colour variation (sun-bleached patches, damp hollows)
+  col *= mix(vec3(0.86, 0.92, 0.84), vec3(1.08, 1.04, 0.92), macro);
+  col *= mix(1.0, 0.82, moist * (1.0 - wSand));
+  // shoreline wetness
+  float wet = 1.0 - smoothstep(-0.1, 1.3, vWPos.y);
+  col *= mix(1.0, 0.5, wet);
+  rough = mix(rough, 0.18, wet * 0.85);
+  diffuseColor.rgb = col;
+  vec3 terrWN = mix(N, wn, 1.0 - far * 0.5);
 `)
-        .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-  roughnessFactor = mix(roughnessFactor, 0.35, wet*0.9);
-  roughnessFactor = mix(roughnessFactor, 0.82, rockA);
-`);
+        .replace('#include <roughnessmap_fragment>', `float roughnessFactor = rough;`)
+        .replace('#include <normal_fragment_maps>', `normal = normalize((viewMatrix * vec4(terrWN, 0.0)).xyz);`);
     };
-    mat.customProgramCacheKey = () => 'terrain-v2';
+    mat.customProgramCacheKey = () => 'terrain-pbr-' + hq;
     return mat;
   }
 

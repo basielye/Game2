@@ -1,94 +1,107 @@
-// Post-processing stack: MSAA render → bloom → ACES tonemap → cinematic grade (vignette, grain, Dead Eye sepia, damage).
+// Post-processing (pmndrs/postprocessing):
+//   scene (HalfFloat, MSAA) → N8AO ambient occlusion → mipmap bloom → AgX tone mapping → cinematic grade → SMAA.
 import * as THREE from 'three';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { EffectComposer, RenderPass, EffectPass, BloomEffect, ToneMappingEffect, ToneMappingMode, SMAAEffect, SMAAPreset, Effect, BlendFunction } from 'postprocessing';
+import { N8AOPostPass } from 'n8ao';
 
-const GradeShader = {
-  uniforms: {
-    tDiffuse: { value: null }, uTime: { value: 0 }, uDeadEye: { value: 0 }, uDamage: { value: 0 },
-    uVignette: { value: 0.32 }, uSat: { value: 1.08 }, uContrast: { value: 1.06 }, uWarm: { value: 0.02 }, uGrain: { value: 0.035 }, uRes: { value: new THREE.Vector2(1, 1) },
-    uFade: { value: 0 }, uNight: { value: 0 },
-    uSun: { value: new THREE.Vector2(0.5, 0.5) }, uRays: { value: 0 }, uSunCol: { value: new THREE.Color(1, 0.9, 0.7) },
-  },
-  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-  fragmentShader: /* glsl */`
-    uniform sampler2D tDiffuse; uniform float uTime, uDeadEye, uDamage, uVignette, uSat, uContrast, uWarm, uGrain, uFade, uNight, uRays; uniform vec2 uRes, uSun; uniform vec3 uSunCol;
-    varying vec2 vUv;
-    float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }
-    void main(){
-      vec2 uv = vUv;
-      // subtle chromatic aberration toward edges (stronger in Dead Eye)
-      vec2 dc = uv - 0.5;
-      float ca = 0.0015 + uDeadEye * 0.004;
-      vec3 col;
-      col.r = texture2D(tDiffuse, uv + dc * ca).r;
-      col.g = texture2D(tDiffuse, uv).g;
-      col.b = texture2D(tDiffuse, uv - dc * ca).b;
-      // volumetric light shafts: march toward the sun, gathering bright sky pixels
-      if (uRays > 0.01) {
-        vec2 delta = (uSun - uv) / 28.0;
-        vec2 p = uv + delta * h(uv * uRes + uTime) ;
-        float illum = 0.0, decay = 1.0;
-        for (int i = 0; i < 28; i++) {
-          p += delta;
-          vec3 s = texture2D(tDiffuse, clamp(p, 0.0, 1.0)).rgb;
-          float b = max(0.0, dot(s, vec3(0.333)) - 0.72) * 3.5;
-          illum += b * decay;
-          decay *= 0.94;
-        }
-        col += uSunCol * illum * (uRays / 28.0) * 0.9;
-      }
-      float l = dot(col, vec3(0.299, 0.587, 0.114));
-      // split toning: teal shadows, warm highlights
-      col = mix(col * vec3(0.93, 1.0, 1.06), col * vec3(1.06, 1.0, 0.92), smoothstep(0.15, 0.85, l));
-      col = mix(vec3(l), col, uSat);
-      col = (col - 0.5) * uContrast + 0.5;
-      col += vec3(uWarm, uWarm * 0.4, -uWarm);
-      // moonlit night tint
-      col = mix(col, col * vec3(0.8, 0.9, 1.15), uNight * 0.5);
-      // Dead Eye: warm sepia, crushed edges
-      vec3 sep = vec3(l * 1.15, l * 0.92, l * 0.62);
-      col = mix(col, sep, uDeadEye * 0.75);
-      float vig = smoothstep(0.85, 0.2, length(dc * vec2(uRes.x / uRes.y, 1.0)) );
-      col *= mix(1.0 - uVignette, 1.0, vig);
-      col *= mix(1.0, vig, uDeadEye * 0.6);
-      col = mix(col, col * vec3(1.3, 0.4, 0.35), uDamage * (1.0 - vig) * 0.9);
-      col += (h(uv * uRes + uTime) - 0.5) * uGrain;
-      col *= 1.0 - uFade;
-      gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
-    }`,
-};
+const gradeFrag = /* glsl */`
+uniform float uTime, uDeadEye, uDamage, uVignette, uSat, uContrast, uGrain, uFade, uNight, uRays;
+uniform vec2 uSun; uniform vec3 uSunCol;
+float h12(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }
+void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
+  vec3 col = inputColor.rgb;
+  vec2 dc = uv - 0.5;
+  // light shafts toward the on-screen sun (bright, unoccluded sky pixels only)
+  if (uRays > 0.01) {
+    vec2 delta = (uSun - uv) / 32.0;
+    vec2 p = uv + delta * h12(uv * resolution + uTime);
+    float illum = 0.0, decay = 1.0;
+    for (int i = 0; i < 32; i++) {
+      p += delta;
+      vec3 s = texture2D(inputBuffer, clamp(p, 0.0, 1.0)).rgb;
+      illum += max(0.0, dot(s, vec3(0.333)) - 0.8) * decay;
+      decay *= 0.95;
+    }
+    col += uSunCol * illum * (uRays / 32.0) * 0.7;
+  }
+  // subtle lens chromatic aberration near the frame edges
+  float ca = (0.0008 + uDeadEye * 0.004) * dot(dc, dc) * 4.0;
+  col.r = mix(col.r, texture2D(inputBuffer, uv + dc * ca).r, 0.6);
+  col.b = mix(col.b, texture2D(inputBuffer, uv - dc * ca).b, 0.6);
+  float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
+  col = mix(vec3(l), col, uSat);
+  col = (col - 0.5) * uContrast + 0.5;
+  // filmic split tone: cool shadows, warm highlights
+  col = mix(col * vec3(0.95, 1.0, 1.05), col * vec3(1.05, 1.0, 0.94), smoothstep(0.1, 0.9, l));
+  col = mix(col, col * vec3(0.82, 0.92, 1.12), uNight * 0.45);
+  vec3 sep = vec3(l * 1.12, l * 0.9, l * 0.6);
+  col = mix(col, sep, uDeadEye * 0.75);
+  float vig = smoothstep(0.95, 0.25, length(dc * vec2(resolution.x / resolution.y, 1.0)));
+  col *= mix(1.0 - uVignette, 1.0, vig);
+  col *= mix(1.0, vig, uDeadEye * 0.6);
+  col = mix(col, col * vec3(1.3, 0.4, 0.35), uDamage * (1.0 - vig) * 0.9);
+  col += (h12(uv * resolution + fract(uTime) * 100.0) - 0.5) * uGrain;
+  col *= 1.0 - uFade;
+  outputColor = vec4(clamp(col, 0.0, 1.0), inputColor.a);
+}`;
+
+class GradeEffect extends Effect {
+  constructor() {
+    const u = new Map([
+      ['uTime', new THREE.Uniform(0)], ['uDeadEye', new THREE.Uniform(0)], ['uDamage', new THREE.Uniform(0)],
+      ['uVignette', new THREE.Uniform(0.3)], ['uSat', new THREE.Uniform(1.1)], ['uContrast', new THREE.Uniform(1.06)],
+      ['uGrain', new THREE.Uniform(0.025)], ['uFade', new THREE.Uniform(0)], ['uNight', new THREE.Uniform(0)],
+      ['uRays', new THREE.Uniform(0)], ['uSun', new THREE.Uniform(new THREE.Vector2(0.5, 0.5))], ['uSunCol', new THREE.Uniform(new THREE.Color(1, 0.9, 0.7))],
+    ]);
+    super('GradeEffect', gradeFrag, { uniforms: u, blendFunction: BlendFunction.NORMAL });
+  }
+}
 
 export class Post {
   constructor(renderer, scene, camera) {
     this.renderer = renderer;
-    const size = renderer.getDrawingBufferSize(new THREE.Vector2());
-    this.rt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
-    this.composer = new EffectComposer(renderer, this.rt);
+    this.scene = scene;
+    this.camera = camera;
+    renderer.toneMapping = THREE.NoToneMapping;
+    this.composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType, multisampling: 4 });
     this.renderPass = new RenderPass(scene, camera);
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.32, 0.55, 0.88);
-    this.output = new OutputPass();
-    this.grade = new ShaderPass(GradeShader);
     this.composer.addPass(this.renderPass);
-    this.composer.addPass(this.bloom);
-    this.composer.addPass(this.output);
-    this.composer.addPass(this.grade);
-    this.u = this.grade.uniforms;
+    this.ao = new N8AOPostPass(scene, camera, 1280, 720);
+    this.ao.configuration.aoRadius = 1.6;
+    this.ao.configuration.distanceFalloff = 1.2;
+    this.ao.configuration.intensity = 2.4;
+    this.ao.configuration.aoSamples = 12;
+    this.ao.configuration.denoiseSamples = 6;
+    this.ao.configuration.denoiseRadius = 10;
+    this.ao.configuration.halfRes = true;
+    this.ao.configuration.gammaCorrection = false;
+    this.ao.configuration.transparencyAware = false;
+    this.ao.configuration.autoDetectTransparency = false;
+    this.composer.addPass(this.ao);
+    this.bloom = new BloomEffect({ mipmapBlur: true, intensity: 0.55, luminanceThreshold: 1.1, luminanceSmoothing: 0.25, radius: 0.72 });
+    this.tone = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
+    this.gradeFx = new GradeEffect();
+    this.smaa = new SMAAEffect({ preset: SMAAPreset.HIGH });
+    this.passHDR = new EffectPass(camera, this.bloom, this.tone);
+    this.passLDR = new EffectPass(camera, this.gradeFx, this.smaa);
+    this.composer.addPass(this.passHDR);
+    this.composer.addPass(this.passLDR);
+    // expose uniforms with the same names the game already drives
+    this.u = {};
+    for (const [k, v] of this.gradeFx.uniforms) this.u[k] = v;
+    this.exposure = 1;
   }
   setSize(w, h, pr) {
-    this.composer.setPixelRatio(pr);
+    this.renderer.setPixelRatio(pr);
     this.composer.setSize(w, h);
-    this.u.uRes.value.set(w * pr, h * pr);
+    this.ao.setSize(Math.round(w * pr), Math.round(h * pr));
   }
   setQuality(q) {
-    this.bloom.enabled = q !== 'low';
-    this.rt.samples = q === 'low' ? 0 : 4;
-    this.composer.renderTarget1.samples = this.rt.samples;
-    this.composer.renderTarget2.samples = this.rt.samples;
-    this.composer.renderTarget1.dispose(); this.composer.renderTarget2.dispose();
+    this.ao.enabled = q === 'high' || q === 'ultra' || q === 'medium';
+    this.ao.configuration.halfRes = q !== 'ultra';
+    this.ao.configuration.aoSamples = q === 'ultra' ? 16 : q === 'high' ? 12 : 8;
+    this.composer.multisampling = q === 'low' ? 0 : q === 'medium' ? 2 : 4;
+    this.bloom.intensity = q === 'low' ? 0.3 : 0.55;
   }
   render(dt) {
     this.u.uTime.value += dt;

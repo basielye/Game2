@@ -6,6 +6,7 @@ import { mulberry32, noise } from '../core/noise.js';
 import { smoothstep, clamp } from '../core/math.js';
 import { taperTube, frondStrip, leafCluster, blob, merge, colorize } from './geom.js';
 import { LOCATIONS } from '../data/world.js';
+import { foliageUniforms } from './flora.js';
 
 export const windUniforms = { uTime: { value: 0 }, uWind: { value: 1 } };
 const FOLIAGE_NORMAL = `float faceDirection = 1.0;
@@ -192,7 +193,9 @@ function buildRock(M, rng, size) {
 const BUCKET = 64;
 
 export class Vegetation {
-  constructor(terrain, colliders, quality) {
+  constructor(terrain, colliders, quality, scans = null, flora = null) {
+    this.scans = scans;
+    this.flora = flora;
     this.terrain = terrain;
     this.colliders = colliders;
     this.group = new THREE.Group();
@@ -206,7 +209,7 @@ export class Vegetation {
     this._makeSpecies();
     this._scatter();
     this._makeMeshes();
-    this.grass = new Grass(terrain, quality);
+    this.grass = new Grass(terrain, quality, flora && flora.materials ? flora.materials.grass : null);
     this.group.add(this.grass.mesh);
   }
 
@@ -219,15 +222,42 @@ export class Vegetation {
         this.species.push({ name, ...s, ...opts, variant: v });
       }
     };
-    add('palm', buildPalm, 3, { nearDist: 190, farDist: 900, shadow: true, nearCap: 2500, farCap: 6000 });
-    add('jungle', (M, r) => buildJungle(M, r, false), 3, { nearDist: 170, farDist: 900, shadow: true, nearCap: 3500, farCap: 11000 });
-    add('jungleBig', (M, r) => buildJungle(M, r, true), 2, { nearDist: 210, farDist: 1000, shadow: true, nearCap: 1500, farCap: 4000 });
-    add('treefern', buildTreeFern, 2, { nearDist: 120, farDist: 160, shadow: true, nearCap: 3000, farCap: 1000 });
-    add('conifer', buildConifer, 2, { nearDist: 170, farDist: 1000, shadow: true, nearCap: 2000, farCap: 6000 });
-    add('bush', buildBush, 3, { nearDist: 90, farDist: 0, shadow: false, nearCap: 6500, farCap: 0 });
-    add('fern', buildFern, 2, { nearDist: 70, farDist: 0, shadow: false, nearCap: 8000, farCap: 0 });
-    add('rock', (M, r) => buildRock(M, r, 1.4), 2, { nearDist: 200, farDist: 700, shadow: true, nearCap: 2500, farCap: 4000 });
-    add('boulder', (M, r) => buildRock(M, r, 4.5), 2, { nearDist: 300, farDist: 1000, shadow: true, nearCap: 800, farCap: 2000 });
+    const F = this.flora;
+    if (F) {
+      const fl = (name, list, opts) => list.forEach((sp, v) => this.species.push({ name, ...sp, ...opts, variant: v }));
+      fl('palm', F.palm, { nearDist: 55, midDist: 160, farDist: 900, shadow: true, nearCap: 400, midCap: 2500, farCap: 6000 });
+      fl('jungle', F.jungle, { nearDist: 50, midDist: 140, farDist: 900, shadow: true, nearCap: 350, midCap: 2500, farCap: 11000 });
+      fl('jungleBig', F.jungleBig, { nearDist: 60, midDist: 170, farDist: 1000, shadow: true, nearCap: 200, midCap: 1200, farCap: 4000 });
+      fl('treefern', F.treefern, { nearDist: 90, farDist: 0, shadow: true, nearCap: 2500, farCap: 0 });
+      fl('conifer', F.conifer, { nearDist: 50, midDist: 140, farDist: 1000, shadow: true, nearCap: 400, midCap: 2000, farCap: 6000 });
+      fl('bush', F.bush, { nearDist: 80, farDist: 0, shadow: true, nearCap: 5000, farCap: 0 });
+      fl('fern', F.fern, { nearDist: 60, farDist: 0, shadow: false, nearCap: 7000, farCap: 0 });
+    } else {
+      add('palm', buildPalm, 3, { nearDist: 190, farDist: 900, shadow: true, nearCap: 2500, farCap: 6000 });
+      add('jungle', (M, r) => buildJungle(M, r, false), 3, { nearDist: 170, farDist: 900, shadow: true, nearCap: 3500, farCap: 11000 });
+      add('jungleBig', (M, r) => buildJungle(M, r, true), 2, { nearDist: 210, farDist: 1000, shadow: true, nearCap: 1500, farCap: 4000 });
+      add('treefern', buildTreeFern, 2, { nearDist: 120, farDist: 160, shadow: true, nearCap: 3000, farCap: 1000 });
+      add('conifer', buildConifer, 2, { nearDist: 170, farDist: 1000, shadow: true, nearCap: 2000, farCap: 6000 });
+      add('bush', buildBush, 3, { nearDist: 90, farDist: 0, shadow: false, nearCap: 6500, farCap: 0 });
+      add('fern', buildFern, 2, { nearDist: 70, farDist: 0, shadow: false, nearCap: 8000, farCap: 0 });
+    }
+    const S = this.scans;
+    if (S && S.rocks.length) {
+      // photoscanned rocks, normalised to a target footprint
+      const scanSpecies = (name, list, target, opts) => list.forEach((e, v) => {
+        const k = target / Math.max(e.size.x, e.size.z);
+        const near = e.near.clone().scale(k, k, k), far = e.far.clone().scale(k, k, k);
+        if (opts.sink) { near.translate(0, -e.size.y * k * opts.sink, 0); far.translate(0, -e.size.y * k * opts.sink, 0); }
+        this.species.push({ name, near: [{ geo: near, mat: e.mat }], far: [{ geo: far, mat: e.mat }], radius: target * 0.38, rock: true, height: e.size.y * k, variant: v, ...opts });
+      });
+      scanSpecies('rock', S.rocks, 1.7, { nearDist: 90, farDist: 420, shadow: true, nearCap: 1500, farCap: 2500, sink: 0.15 });
+      scanSpecies('boulder', S.boulders, 4.2, { nearDist: 260, farDist: 900, shadow: true, nearCap: 500, farCap: 1200, sink: 0.2 });
+      scanSpecies('cliff', S.cliffs, 18, { nearDist: 420, farDist: 1100, shadow: true, nearCap: 300, farCap: 700, sink: 0.35 });
+      scanSpecies('log', S.logs, 5.5, { nearDist: 120, farDist: 0, shadow: true, nearCap: 400, farCap: 0, sink: 0.25 });
+    } else {
+      add('rock', (M, r) => buildRock(M, r, 1.4), 2, { nearDist: 200, farDist: 700, shadow: true, nearCap: 2500, farCap: 4000 });
+      add('boulder', (M, r) => buildRock(M, r, 4.5), 2, { nearDist: 300, farDist: 1000, shadow: true, nearCap: 800, farCap: 2000 });
+    }
     this.speciesIdx = {};
     this.species.forEach((s, i) => { (this.speciesIdx[s.name] ||= []).push(i); });
   }
@@ -240,7 +270,7 @@ export class Vegetation {
     if (!b) { b = { x: (bx + 0.5) * BUCKET, z: (bz + 0.5) * BUCKET, items: [] }; this.buckets.set(k, b); }
     b.items.push(si, x, y, z, rot, scale);
     const sp = this.species[si];
-    if (sp.radius > 0) this.colliders.addCircle(x, z, sp.radius * scale, y - 2, y + (sp.rock ? sp.radius * scale * 1.4 : 30), sp.rock ? 'rock' : 'tree');
+    if (sp.radius > 0) this.colliders.addCircle(x, z, sp.radius * scale, y - 2, y + (sp.rock ? (sp.height || sp.radius * 1.4) * scale : 30), sp.rock ? 'rock' : 'tree');
   }
 
   _scatter() {
@@ -264,7 +294,12 @@ export class Vegetation {
       const r = rng();
       const rot = rng() * Math.PI * 2;
       if (keepOut(px, pz)) continue;
-      if (slope > 0.42) { if (r < 0.06) this._put(pickVar('boulder'), px, pz, rot, 0.6 + rng() * 0.8); continue; }
+      if (slope > 0.36) {
+        if (this.speciesIdx.cliff && r < 0.07) this._put(pickVar('cliff'), px, pz, rot, 0.5 + rng() * 0.7);
+        else if (r < 0.11) this._put(pickVar('boulder'), px, pz, rot, 0.5 + rng() * 0.8);
+        else if (r < 0.2) this._put(pickVar('rock'), px, pz, rot, 0.6 + rng() * 1.2);
+        continue;
+      }
       if (h < 5.5) {
         if (r < 0.2) this._put(pickVar('palm'), px, pz, rot, 0.8 + rng() * 0.4);
         else if (r < 0.24) this._put(pickVar('rock'), px, pz, rot, 0.5 + rng());
@@ -290,7 +325,8 @@ export class Vegetation {
       else if (r < 0.35 * dens) this._put(pickVar('jungleBig'), px, pz, rot, 0.8 + rng() * 0.4);
       else if (r < 0.47 * dens) this._put(pickVar('treefern'), px, pz, rot, 0.8 + rng() * 0.5);
       else if (r < 0.52 * dens + 0.02) this._put(pickVar('palm'), px, pz, rot, 0.8 + rng() * 0.3);
-      else if (r < 0.56) this._put(pickVar('rock'), px, pz, rot, 0.5 + rng());
+      else if (r < 0.58) this._put(pickVar('rock'), px, pz, rot, 0.5 + rng());
+      else if (this.speciesIdx.log && r < 0.6) this._put(pickVar('log'), px, pz, rot, 0.7 + rng() * 0.6);
     }
     // understory pass (bushes + ferns), denser, small
     const step2 = 3.6;
@@ -314,18 +350,18 @@ export class Vegetation {
         const m = new THREE.InstancedMesh(p.geo, p.mat, cap);
         m.count = 0;
         m.frustumCulled = false;
-        m.castShadow = lod === 'near' && sp.shadow && this.quality.treeShadows;
+        m.castShadow = (lod === 'near' || (lod === 'mid' && this.quality.midShadows)) && sp.shadow && this.quality.treeShadows;
         m.receiveShadow = true;
         m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         this.group.add(m);
         return m;
       });
-      this.batches[si] = { near: mk(sp.near, sp.nearCap, 'near'), far: sp.farDist > 0 ? mk(sp.far, sp.farCap, 'far') : [] };
+      this.batches[si] = { near: mk(sp.near, sp.nearCap, 'near'), mid: sp.mid ? mk(sp.mid, sp.midCap, 'mid') : [], far: sp.farDist > 0 && sp.far.length ? mk(sp.far, sp.farCap, 'far') : [] };
     });
   }
 
   setShadows(on) {
-    this.species.forEach((sp, si) => this.batches[si].near.forEach((m) => (m.castShadow = on && sp.shadow)));
+    this.species.forEach((sp, si) => { this.batches[si].near.forEach((m) => (m.castShadow = on && sp.shadow)); this.batches[si].mid.forEach((m) => (m.castShadow = on && sp.shadow && !!this.quality.midShadows)); });
   }
 
   update(dt, camPos, force = false, camDir = null) {
@@ -338,7 +374,7 @@ export class Vegetation {
     const cdx = camDir ? camDir.x : 0, cdz = camDir ? camDir.z : 0;
     const cdl = Math.hypot(cdx, cdz) || 1;
     const fx = cdx / cdl, fz = cdz / cdl, cull = !!camDir && !force;
-    const counts = this.species.map(() => [0, 0]);
+    const counts = this.species.map(() => [0, 0, 0]);
     const lodMul = this.quality.lod;
     const maxFar = 1000 * lodMul;
     for (const b of this.buckets.values()) {
@@ -354,12 +390,13 @@ export class Vegetation {
         if (cull && d2 > 900) { const inv = 1 / Math.sqrt(d2); if ((dx * fx + dz * fz) * inv < 0.25) continue; }
         let lod;
         if (d2 < nd * nd) lod = 0;
-        else if (sp.farDist > 0 && d2 < (sp.farDist * lodMul) ** 2) lod = 1;
+        else if (sp.midDist && d2 < (sp.midDist * lodMul) ** 2) lod = 1;
+        else if (sp.farDist > 0 && sp.far.length && d2 < (sp.farDist * lodMul) ** 2) lod = 2;
         else continue;
         const c = counts[si];
-        const cap = lod === 0 ? sp.nearCap : sp.farCap;
+        const cap = lod === 0 ? sp.nearCap : lod === 1 ? sp.midCap : sp.farCap;
         if (c[lod] >= cap) continue;
-        const meshes = lod === 0 ? this.batches[si].near : this.batches[si].far;
+        const meshes = lod === 0 ? this.batches[si].near : lod === 1 ? this.batches[si].mid : this.batches[si].far;
         const rot = it[i + 4], s = it[i + 5];
         const co = Math.cos(rot) * s, sn = Math.sin(rot) * s;
         const idx = c[lod]++ * 16;
@@ -375,22 +412,25 @@ export class Vegetation {
     this.species.forEach((sp, si) => {
       const B = this.batches[si];
       for (const m of B.near) { m.count = counts[si][0]; m.visible = m.count > 0; m.instanceMatrix.needsUpdate = true; }
-      for (const m of B.far) { m.count = counts[si][1]; m.visible = m.count > 0; m.instanceMatrix.needsUpdate = true; }
+      for (const m of B.mid) { m.count = counts[si][1]; m.visible = m.count > 0; m.instanceMatrix.needsUpdate = true; }
+      for (const m of B.far) { m.count = counts[si][2]; m.visible = m.count > 0; m.instanceMatrix.needsUpdate = true; }
     });
   }
 }
 
 // ---------------- Grass ----------------
 class Grass {
-  constructor(terrain, quality) {
+  constructor(terrain, quality, photoCard = null) {
     this.terrain = terrain;
     this.radius = quality.grassRadius;
     this.density = quality.grassDensity;
+    this.photo = !!photoCard;
     this.cap = 60000;
     const blades = [];
+    const GW = photoCard ? 1.1 : 0.7, GH = photoCard ? 0.9 : 0.5;
     for (let i = 0; i < 3; i++) {
-      const g = new THREE.PlaneGeometry(0.7, 0.5, 1, 2);
-      g.translate(0, 0.25, 0);
+      const g = new THREE.PlaneGeometry(GW, GH, 1, 3);
+      g.translate(0, GH / 2, 0);
       g.rotateY((i / 3) * Math.PI);
       // normals point up for soft lighting
       const na = g.attributes.normal;
@@ -398,17 +438,21 @@ class Grass {
       blades.push(g);
     }
     const geo = merge(blades);
-    const mat = new THREE.MeshStandardMaterial({ map: getTex('grassBlade'), alphaTest: 0.5, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.85, color: 0xcfe0a8 });
+    const mat = photoCard
+      ? new THREE.MeshStandardMaterial({ map: photoCard, alphaTest: 0.38, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.7, color: 0xffffff })
+      : new THREE.MeshStandardMaterial({ map: getTex('grassBlade'), alphaTest: 0.5, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.85, color: 0xcfe0a8 });
+    const gh = GH.toFixed(3);
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = windUniforms.uTime;
       sh.uniforms.uWind = windUniforms.uWind;
       sh.uniforms.uPlayer = grassPlayer;
+      sh.uniforms.uSunView = foliageUniforms.uSunView; sh.uniforms.uSunCol = foliageUniforms.uSunCol;
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nuniform float uTime; uniform float uWind; uniform vec3 uPlayer; varying float vGy;')
         .replace('#include <begin_vertex>', `#include <begin_vertex>
           vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
           float hh = position.y;
-          vGy = hh / 0.5;
+          vGy = hh / ${gh};
           float ph = uTime * 2.0 + ip.x * 0.15 + ip.z * 0.11;
           float w = (sin(ph) * 0.5 + sin(ph * 2.7) * 0.2 + 0.25) * hh * 0.45 * uWind;
           transformed.x += w; transformed.z += w * 0.5;
@@ -416,11 +460,14 @@ class Grass {
           float push = (1.0 - smoothstep(0.3, 1.6, pd)) * hh * 0.9;
           if (pd > 0.001) { transformed.xz += normalize(away) * push; transformed.y -= push * 0.4; }`);
       sh.fragmentShader = sh.fragmentShader
-        .replace('#include <common>', '#include <common>\nvarying float vGy;')
-        .replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.rgb *= mix(0.6, 1.2, clamp(vGy, 0.0, 1.0));')
-        .replace('#include <normal_fragment_begin>', FOLIAGE_NORMAL);
+        .replace('#include <common>', '#include <common>\nvarying float vGy; uniform vec3 uSunView; uniform vec3 uSunCol;')
+        .replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.rgb *= mix(0.35, 1.15, smoothstep(0.0, 0.9, vGy));')
+        .replace('#include <normal_fragment_begin>', FOLIAGE_NORMAL)
+        .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+          { vec3 V = normalize(vViewPosition); float back = pow(clamp(dot(-V, uSunView), 0.0, 1.0), 3.0);
+            reflectedLight.directDiffuse += diffuseColor.rgb * uSunCol * (back * 0.28 + 0.05) * smoothstep(0.3, 1.0, vGy); }`);
     };
-    mat.customProgramCacheKey = () => 'grass';
+    mat.customProgramCacheKey = () => 'grass' + (photoCard ? '-photo' : '');
     this.mesh = new THREE.InstancedMesh(geo, mat, this.cap);
     this.mesh.count = 0;
     this.mesh.frustumCulled = false;
@@ -465,7 +512,10 @@ class Grass {
       arr[i + 8] = sn; arr[i + 9] = 0; arr[i + 10] = c; arr[i + 11] = 0;
       arr[i + 12] = x; arr[i + 13] = y - 0.05; arr[i + 14] = z; arr[i + 15] = 1;
       const m = noise.noise2(x * 0.012, z * 0.012) * 0.5 + 0.5;
-      col[n * 3] = 0.8 + m * 0.35; col[n * 3 + 1] = 0.95 + r3 * 0.1; col[n * 3 + 2] = 0.7 + m * 0.1;
+      if (this.photo) {
+        const dry = smoothstep(0.55, 0.9, m) * 0.7 + r3 * 0.15;
+        col[n * 3] = 0.34 + dry * 0.32; col[n * 3 + 1] = 0.46 + dry * 0.12 + r2 * 0.05; col[n * 3 + 2] = 0.17 + dry * 0.05;
+      } else { col[n * 3] = 0.8 + m * 0.35; col[n * 3 + 1] = 0.95 + r3 * 0.1; col[n * 3 + 2] = 0.7 + m * 0.1; }
       n++;
     }
     this.mesh.count = n;
