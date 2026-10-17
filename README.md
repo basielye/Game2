@@ -28,6 +28,7 @@ Click the game to capture the mouse; **Esc** pauses. Xbox/PlayStation controller
 | Key | Action |
 |---|---|
 | **W A S D** | Move |
+| **Mouse / Arrow keys** | Look around (the camera also eases behind you while you walk; toggle in Settings) |
 | **Shift** | Sprint / gallop |
 | **C** | Crouch (stealth) |
 | **Space** | Jump (mount: leap) |

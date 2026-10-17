@@ -10,9 +10,11 @@ export class Input {
     this.sensitivity = 1;
     this.invertY = false;
     this.enabled = true;
+    this.lastMouseT = 0;
+    this._lockT = 0;
     addEventListener('keydown', (e) => {
       if (e.repeat) return;
-      if (['Tab', 'Space', 'ArrowUp', 'ArrowDown'].includes(e.code) && this.locked) e.preventDefault();
+      if (['Tab', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code) && this.locked) e.preventDefault();
       if (e.code === 'Tab' || e.code === 'AltLeft' || e.code === 'AltRight' || (this.locked && (e.code === 'KeyS' || e.code === 'KeyF') && e.ctrlKey)) e.preventDefault();
       this.down.add(e.code); this.pressed.add(e.code);
     });
@@ -20,7 +22,11 @@ export class Input {
     addEventListener('blur', () => { this.down.clear(); this.mouse.buttons = 0; });
     addEventListener('mousemove', (e) => {
       if (!this.locked) return;
-      this.mouse.dx += e.movementX; this.mouse.dy += e.movementY;
+      // some browsers emit a bogus huge delta right after locking/alt-tab; drop isolated spikes
+      const mx = e.movementX || 0, my = e.movementY || 0;
+      if ((Math.abs(mx) > 400 || Math.abs(my) > 400) && performance.now() - this._lockT < 300) return;
+      this.mouse.dx += mx; this.mouse.dy += my;
+      if (mx || my) this.lastMouseT = performance.now();
     });
     addEventListener('mousedown', (e) => {
       if (!this.locked) return;
@@ -31,6 +37,7 @@ export class Input {
     addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.canvas;
+      this._lockT = performance.now();
       if (!this.locked) { this.mouse.buttons = 0; this.onUnlock?.(); }
     });
   }
@@ -80,10 +87,18 @@ export class Input {
     const rx = dz(gp.axes[2] || 0), ry = dz(gp.axes[3] || 0);
     this.mouse.dx += rx * 900 * dt;
     this.mouse.dy += ry * 600 * dt;
+    if (rx || ry) this.lastMouseT = performance.now();
     this._padPrev = b;
   }
 
-  lock() { if (!this.locked) this.canvas.requestPointerLock?.()?.catch?.(() => {}); }
+  lock() {
+    if (this.locked || !this.canvas.requestPointerLock) return;
+    // raw (unaccelerated) mouse where supported; fall back to a plain lock
+    let p;
+    try { p = this.canvas.requestPointerLock({ unadjustedMovement: true }); } catch (e) { p = null; }
+    if (p && p.catch) p.catch(() => { this.canvas.requestPointerLock()?.catch?.(() => {}); });
+    else if (!p && !document.pointerLockElement) { try { this.canvas.requestPointerLock(); } catch (e) { /* ignore */ } }
+  }
   unlock() { if (document.pointerLockElement) document.exitPointerLock(); }
   key(c) { return this.enabled && this.down.has(c); }
   hit(c) { return this.enabled && this.pressed.has(c); }

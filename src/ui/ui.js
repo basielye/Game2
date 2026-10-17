@@ -277,6 +277,7 @@ export class UI {
       <label>Mouse sensitivity <input type="range" min="0.2" max="3" step="0.1" value="${S.sensitivity}" data-set="sensitivity"></label>
       <label>Field of view <input type="range" min="50" max="85" step="1" value="${S.fov}" data-set="fov"></label>
       <label>Invert mouse Y <input type="checkbox" ${S.invertY ? 'checked' : ''} data-set="invertY"></label>
+      <label>Camera follows movement <input type="checkbox" ${S.camFollow !== false ? 'checked' : ''} data-set="camFollow"></label>
       <label>Master volume <input type="range" min="0" max="1" step="0.05" value="${S.master}" data-set="master"></label>
       <label>Music volume <input type="range" min="0" max="1" step="0.05" value="${S.music}" data-set="music"></label>
       <label>Effects volume <input type="range" min="0" max="1" step="0.05" value="${S.sfx}" data-set="sfx"></label>
@@ -292,11 +293,11 @@ export class UI {
   }
 
   controlsHTML() {
-    const rows = [['W A S D', 'Move'], ['Shift', 'Sprint / gallop'], ['C', 'Crouch (stealth)'], ['Space', 'Jump'], ['Right Mouse', 'Aim'], ['Left Mouse', 'Fire / draw bow / swing'], ['Q (while aiming)', 'Dead Eye — mark targets, click to unleash'], ['R', 'Reload'], ['1 – 4 / Wheel', 'Switch weapon'], ['T', 'Toggle venom arrows'], ['E', 'Interact / gather / talk / loot (hold to tame)'], ['F', 'Mount / dismount'], ['H', 'Whistle for your mount'], ['L', 'Toggle lantern'], ['G', 'Eat food'], ['B', 'Use bandage'], ['X (hold)', 'Walk slowly'], ['Tab', 'Satchel & crafting'], ['M', 'Map'], ['J', 'Journal'], ['Esc', 'Pause']];
+    const rows = [['W A S D', 'Move'], ['Mouse / Arrow keys', 'Look around'], ['Shift', 'Sprint / gallop'], ['C', 'Crouch (stealth)'], ['Space', 'Jump'], ['Right Mouse', 'Aim'], ['Left Mouse', 'Fire / draw bow / swing'], ['Q (while aiming)', 'Dead Eye — mark targets, click to unleash'], ['R', 'Reload'], ['1 – 4 / Wheel', 'Switch weapon'], ['T', 'Toggle venom arrows'], ['E', 'Interact / gather / talk / loot (hold to tame)'], ['F', 'Mount / dismount'], ['H', 'Whistle for your mount'], ['L', 'Toggle lantern'], ['G', 'Eat food'], ['B', 'Use bandage'], ['X (hold)', 'Walk slowly'], ['Tab', 'Satchel & crafting'], ['M', 'Map'], ['J', 'Journal'], ['Esc', 'Pause']];
     return `<div class="controls"><h3>Controls</h3>${rows.map(([k, v]) => `<div class="cr"><kbd>${k}</kbd><span>${v}</span></div>`).join('')}<h3>Gamepad</h3><div class="cr"><kbd>Sticks</kbd><span>Move / look · L3 sprint · R3 Dead Eye</span></div><div class="cr"><kbd>LT / RT</kbd><span>Aim / fire</span></div><div class="cr"><kbd>A B X Y</kbd><span>Jump · crouch · interact & reload · mount</span></div><div class="cr"><kbd>LB / RB</kbd><span>Switch weapon</span></div><div class="cr"><kbd>D-pad</kbd><span>Whistle · bandage · eat · lantern</span></div><div class="cr"><kbd>View / Menu</kbd><span>Satchel / pause</span></div></div>`;
   }
   creditsHTML() {
-    return `<div class="credits"><h3>${TITLE}</h3><p>${SUBTITLE}</p><p>Design, code, world, creatures, music & sound — generated procedurally at runtime.<br>Engine: three.js · WebGL2 · WebAudio</p><p>No image, model or audio files: every tree, dinosaur and guitar note is synthesized on your machine.</p><p class="small">"Jurassic Park" is a trademark of Universal City Studios LLC and Amblin Entertainment. This is an unofficial fan project. Rename the park via <code>src/data/story.js</code> for commercial release.</p></div>`;
+    return `<div class="credits"><h3>${TITLE}</h3><p>${SUBTITLE}</p><p>Design, code, world, creatures, music & sound by the Jurassic Frontier team.<br>Engine: three.js · WebGL2 · WebAudio</p><p>Photoscans and textures: Poly Haven (CC0), Babylon.js Assets (CC BY 4.0), three.js (MIT). Trees: EZ-Tree by Daniel Greenheck (MIT). Characters: MakeHuman (CC0); Tank Top by Mindfront (CC BY 4.0); Coat by punkduck (CC BY 3.0).</p><p class="small">"Jurassic Park" is a trademark of Universal City Studios LLC and Amblin Entertainment. This is an unofficial fan project. Rename the park via <code>src/data/story.js</code> for commercial release.</p></div>`;
   }
 
   // ---------- shop ----------

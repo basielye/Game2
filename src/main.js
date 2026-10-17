@@ -42,7 +42,7 @@ const QUALITY = {
   ultra: { pr: 2, shadow: 4096, extent: 120, treeShadows: true, grassRadius: 70, grassDensity: 1.8, lod: 1.25, lights: 8, fog: 0.0012, csm: 4, csmSize: 2048, csmFar: 650, midShadows: true },
 };
 
-const DEFAULT_SETTINGS = { quality: 'medium', renderScale: 1, adaptive: true, difficulty: 'normal', sensitivity: 1, fov: 62, invertY: false, master: 0.8, music: 0.55, sfx: 1, showFps: false };
+const DEFAULT_SETTINGS = { quality: 'medium', renderScale: 1, adaptive: true, difficulty: 'normal', sensitivity: 1, fov: 62, invertY: false, camFollow: true, master: 0.8, music: 0.55, sfx: 1, showFps: false };
 const SAVE_KEY = 'jf_save_v1';
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
@@ -637,10 +637,13 @@ class Game {
     if (this._adT < 2.5) return;
     const fps = this._adF / this._adT;
     this._adT = 0; this._adF = 0;
+    // hysteresis + cooldown: resizing reallocates every render target (a visible stall), so never ping-pong
+    this._adCool = Math.max(0, (this._adCool || 0) - 1);
+    this._adHigh = fps > 58 ? (this._adHigh || 0) + 1 : 0;
     let next = this.dynScale;
-    if (fps < 38) next = Math.max(0.55, this.dynScale - (fps < 25 ? 0.15 : 0.08));
-    else if (fps > 57) next = Math.min(1, this.dynScale + 0.05);
-    if (Math.abs(next - this.dynScale) > 0.01) { this.dynScale = next; this.onResize(); }
+    if (fps < 34 && this._adCool === 0) next = Math.max(0.55, this.dynScale - (fps < 24 ? 0.15 : 0.1));
+    else if (this._adHigh >= 4 && this._adCool === 0) next = Math.min(1, this.dynScale + 0.1);
+    if (Math.abs(next - this.dynScale) > 0.01) { this.dynScale = next; this._adCool = 3; this._adHigh = 0; this.onResize(); }
   }
 
   // Debug/test hook: advance the simulation without rendering.

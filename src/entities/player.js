@@ -192,6 +192,15 @@ export class Player extends Entity {
     const sens = 0.0022 * input.sensitivity * (this.aiming ? 0.6 : 1) * (G.timeScale < 0.9 ? 1 / Math.max(0.35, G.timeScale) * 0.5 : 1);
     this.camYaw -= input.mouse.dx * sens;
     this.camPitch -= input.mouse.dy * sens * (input.invertY ? -1 : 1);
+    // keyboard look (arrow keys) — works when a laptop touchpad is locked out while typing
+    const kTurn = (input.key('ArrowLeft') ? 1 : 0) - (input.key('ArrowRight') ? 1 : 0);
+    const kPitch = (input.key('ArrowUp') ? 1 : 0) - (input.key('ArrowDown') ? 1 : 0);
+    if (kTurn || kPitch) {
+      const rt = G.timeScale < 0.9 ? dt / Math.max(0.35, G.timeScale) : dt;
+      this.camYaw += kTurn * 2.4 * input.sensitivity * rt;
+      this.camPitch += kPitch * 1.4 * input.sensitivity * rt * (input.invertY ? -1 : 1);
+      input.lastMouseT = performance.now();
+    }
     this.camPitch = clamp(this.camPitch, -1.25, 0.95);
 
     const fwd = _v.set(Math.sin(this.camYaw), 0, Math.cos(this.camYaw));
@@ -255,6 +264,11 @@ export class Player extends Entity {
     // facing
     if (this.aiming || this.meleeT >= 0 || (this.weapon !== 'machete' && input.btn(0))) this.yaw = dampAngle(this.yaw, this.camYaw, 18, dt);
     else if (moving) { this.moveYaw = Math.atan2(wish.x, wish.z); this.yaw = dampAngle(this.yaw, this.moveYaw, 10, dt); }
+    // camera auto-follow: after a moment without look input, ease the camera in behind the direction of travel
+    if (G.settings?.camFollow !== false && moving && mz >= 0 && !this.aiming && performance.now() - input.lastMouseT > 700 && Math.hypot(this.vel.x, this.vel.z) > 1.2) {
+      const rate = (mz > 0 ? 1.1 : 0.7) * Math.min(1, (performance.now() - input.lastMouseT - 700) / 600);
+      this.camYaw = dampAngle(this.camYaw, this.moveYaw, rate, dt);
+    }
 
     // jump
     if (input.hit('Space') && this.grounded && !this.swimming && this.knockT <= 0) {
