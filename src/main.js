@@ -27,6 +27,7 @@ import { DIALOGS, FIELD_GUIDE } from './data/story.js';
 import { DINO_DEFS } from './data/dinos.js';
 import { SPECIES } from './entities/dinoModels.js';
 import { clamp, damp, rand, pick, smoothstep } from './core/math.js';
+import { store } from './core/storage.js';
 
 const QUALITY = {
   low: { pr: 0.75, shadow: 1024, extent: 60, treeShadows: false, grassRadius: 28, grassDensity: 0.5, lod: 0.6, lights: 3, fog: 0.0021 },
@@ -41,8 +42,8 @@ const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeou
 
 class Game {
   constructor() {
-    this.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('jf_settings') || '{}') };
-    if (!localStorage.getItem('jf_settings')) this.settings.quality = this._autoQuality();
+    this.settings = { ...DEFAULT_SETTINGS, ...store.json('jf_settings', {}) };
+    if (!store.get('jf_settings')) this.settings.quality = this._autoQuality();
     this.events = new Events();
     this.entities = [];
     this.timeScale = 1;
@@ -179,11 +180,11 @@ class Game {
   }
 
   // ---------- game flow ----------
-  hasSave() { return !!localStorage.getItem(SAVE_KEY); }
+  hasSave() { return !!store.get(SAVE_KEY); }
 
   newGame() {
     this.audio.init();
-    localStorage.removeItem(SAVE_KEY);
+    store.remove(SAVE_KEY);
     this.ui.playIntro(() => {
       const b = locById.bunker;
       this.player.spawn(b.x - 2, b.z + 8, Math.atan2(80 - b.x, 400 - b.z));
@@ -531,12 +532,12 @@ class Game {
       taken: [...this.pickups.taken], discovered: [...this.hud.discovered], time: this.atmo.time, day: this.day,
       mount: m && m.alive ? { kind: m.kindName, x: m.pos.x, z: m.pos.z, scale: m.scale } : null, stats: this.stats, seen: [...this.seen],
     };
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); if (announce) this.hud.toast('Game saved'); } catch (e) { console.warn(e); }
+    if (store.set(SAVE_KEY, JSON.stringify(data))) { if (announce) this.hud.toast('Game saved'); } else if (announce) this.hud.toast('Could not save: browser storage is unavailable', 'danger');
   }
 
   load() {
     let d;
-    try { d = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch { return false; }
+    d = store.json(SAVE_KEY, null);
     if (!d) return false;
     const P = this.player;
     P.spawn(d.player.x, d.player.z, d.player.yaw);
@@ -562,10 +563,10 @@ class Game {
 
   // Contextual one-time hints that teach mechanics when they first matter.
   hint(id, html) {
-    this.hintsShown ||= new Set(JSON.parse(localStorage.getItem('jf_hints') || '[]'));
+    this.hintsShown ||= new Set(store.json('jf_hints', []));
     if (this.hintsShown.has(id)) return;
     this.hintsShown.add(id);
-    localStorage.setItem('jf_hints', JSON.stringify([...this.hintsShown]));
+    store.set('jf_hints', JSON.stringify([...this.hintsShown]));
     this.hud.hint(html);
   }
   checkHints(dt) {

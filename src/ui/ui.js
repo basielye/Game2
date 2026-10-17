@@ -3,6 +3,7 @@ import { TITLE, SUBTITLE, INTRO, QUESTS, ENDINGS, DIALOGS, FIELD_GUIDE } from '.
 import { ITEMS, RECIPES, SHOP, WEAPONS } from '../data/items.js';
 import { LOCATIONS, locById } from '../data/world.js';
 import { worldToMap } from './mapgen.js';
+import { store } from '../core/storage.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -110,7 +111,11 @@ export class UI {
   action(a) {
     const G = this.game;
     switch (a) {
-      case 'new': if (G.hasSave() && !confirm('Start a new game? Your current progress will be overwritten.')) return; G.newGame(); break;
+      case 'new':
+        if (G.hasSave()) this.panel(`<div class="endchoice"><h3>Start a new game?</h3><p>Your saved progress will be overwritten.</p><button data-a="newConfirm">Start New Game</button></div>`, true);
+        else G.newGame();
+        break;
+      case 'newConfirm': G.newGame(); break;
       case 'continue': G.continueGame(); break;
       case 'settings': this.panel(this.settingsHTML(), true); break;
       case 'controls': this.panel(this.controlsHTML(), true); break;
@@ -283,7 +288,7 @@ export class UI {
     if (['renderScale', 'sensitivity', 'fov', 'master', 'music', 'sfx'].includes(k)) v = parseFloat(v);
     S[k] = v;
     this.game.applySettings(k);
-    localStorage.setItem('jf_settings', JSON.stringify(S));
+    store.set('jf_settings', JSON.stringify(S));
   }
 
   controlsHTML() {

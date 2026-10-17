@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --ink: #f3e2b0; --ink-dim: #c8b88a; --gold: #d9a441; --blood: #b0281a; --leather: #2a1a0e; --panel: rgba(22, 14, 8, 0.86);
   --display: 'Rye', 'Cinzel', Georgia, serif; --body: 'IM Fell English', Georgia, serif; --caps: 'Cinzel', Georgia, serif;
 }
