@@ -285,6 +285,57 @@ export class Audio {
   pluckChord(freqs, t, gain, strum = 0.03) { freqs.forEach((f, i) => this.pluck(f, t + i * strum, gain, 3, this.sfx)); }
 
   // ---------- ambience ----------
+  // ---- engines: sawtooth harmonics + filtered rumble; the plane adds blade-pass tremolo and wind rush ----
+  engineStart(type) {
+    if (!this.ok()) return;
+    this.engineStop(true);
+    const ctx = this.ctx, t = this.now;
+    const out = ctx.createGain(); out.gain.value = 0; out.connect(this.sfx);
+    out.gain.linearRampToValueAtTime(type === 'plane' ? 0.32 : 0.28, t + 0.6);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 2; lp.connect(out);
+    const trem = ctx.createGain(); trem.gain.value = 1; trem.connect(lp);
+    const o1 = ctx.createOscillator(); o1.type = 'sawtooth';
+    const o2 = ctx.createOscillator(); o2.type = 'square';
+    const g1 = ctx.createGain(); g1.gain.value = 0.5; const g2 = ctx.createGain(); g2.gain.value = 0.18;
+    o1.connect(g1).connect(trem); o2.connect(g2).connect(trem);
+    const n = ctx.createBufferSource(); n.buffer = this.brown; n.loop = true;
+    const nf = ctx.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 160; nf.Q.value = 0.8;
+    const ng = ctx.createGain(); ng.gain.value = 0.9; n.connect(nf).connect(ng).connect(trem);
+    const wind = ctx.createBufferSource(); wind.buffer = this.white; wind.loop = true;
+    const wf = ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 900; wf.Q.value = 0.5;
+    const wg = ctx.createGain(); wg.gain.value = 0; wind.connect(wf).connect(wg).connect(out);
+    let lfo = null;
+    if (type === 'plane') { lfo = ctx.createOscillator(); lfo.frequency.value = 30; const lg = ctx.createGain(); lg.gain.value = 0.35; lfo.connect(lg).connect(trem.gain); lfo.start(); }
+    for (const x of [o1, o2, n, wind]) x.start();
+    this.eng = { type, out, lp, o1, o2, nf, wg, lfo, nodes: [o1, o2, n, wind, lfo].filter(Boolean) };
+    this.engineUpdate(0.1, 0);
+  }
+  engineUpdate(rpm, speed = 0) {
+    const e = this.eng; if (!e || !this.ok()) return;
+    const t = this.now;
+    const f = e.type === 'plane' ? 48 + rpm * 62 : 34 + rpm * 120;
+    e.o1.frequency.setTargetAtTime(f, t, 0.06); e.o2.frequency.setTargetAtTime(f * 0.5, t, 0.06);
+    e.nf.frequency.setTargetAtTime(90 + rpm * 260, t, 0.08);
+    e.lp.frequency.setTargetAtTime(500 + rpm * 2200, t, 0.08);
+    if (e.lfo) e.lfo.frequency.setTargetAtTime(14 + rpm * 46, t, 0.1);
+    e.wg.gain.setTargetAtTime(Math.min(0.5, speed / 120), t, 0.2);
+  }
+  engineStop(now = false) {
+    const e = this.eng; if (!e) return;
+    this.eng = null;
+    const t = this.now;
+    e.out.gain.cancelScheduledValues(t); e.out.gain.setValueAtTime(e.out.gain.value, t); e.out.gain.linearRampToValueAtTime(0, t + (now ? 0.05 : 0.8));
+    for (const x of e.nodes) x.stop(t + (now ? 0.1 : 0.9));
+  }
+  explosion(pos) {
+    if (!this.ok()) return;
+    const d = this._spatial(pos, 1.4, 600, 0.6); if (!d) return;
+    const t = this.now;
+    this._noise(d, t, 2.2, { type: 'lowpass', freq: 900, gain: 1.4, brown: true, freqEnd: 120 });
+    this._osc(d, t, 1.2, { freq: 70, freqEnd: 28, gain: 1 });
+    this._noise(d, t, 0.25, { freq: 2500, q: 0.7, gain: 0.8 });
+  }
+
   _startAmbience() {
     const ctx = this.ctx;
     const loop = (buf, type, freq, q, g) => {

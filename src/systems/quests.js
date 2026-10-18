@@ -25,8 +25,18 @@ export class Quests {
   get quest() { return this.finished ? null : QUESTS[this.qi]; }
   get step() { const q = this.quest; return q ? q.steps[this.si] : null; }
 
-  serialize() { return { qi: this.qi, si: this.si, finished: this.finished, completed: this.completed, flags: this.flags }; }
-  load(s) { Object.assign(this, s); this.onStepStart(true); }
+  serialize() { return { qi: this.qi, qid: this.quest?.id, si: this.si, finished: this.finished, completed: this.completed, flags: this.flags }; }
+  load(s) {
+    Object.assign(this, s);
+    // saves store the quest id so new chapters can be inserted without breaking old saves
+    if (!this.finished) {
+      let i = s.qid ? QUESTS.findIndex((q) => q.id === s.qid) : -1;
+      if (i < 0) { i = QUESTS.findIndex((q) => !this.completed.includes(q.id)); this.si = 0; }
+      if (i < 0) this.finished = true; else this.qi = i;
+    }
+    delete this.qid;
+    this.onStepStart(true);
+  }
 
   begin() { this.qi = 0; this.si = 0; this.onStepStart(); }
 
@@ -88,6 +98,19 @@ export class Quests {
       const L = locById[s.loc];
       if (Math.hypot(G.player.pos.x - L.x, G.player.pos.z - L.z) < s.r) this.advance();
     }
+    // vehicle objectives
+    const veh = G.player.vehicle;
+    if (s.type === 'drive') {
+      if (veh && veh.type !== 'plane') { this.driven = (this.driven || 0) + Math.abs(veh.speed) * dt; if (this.driven >= s.dist) { this.driven = 0; this.advance(); return; } }
+    }
+    if (s.type === 'flyTo') {
+      const L = locById[s.loc];
+      if (veh && veh.type === 'plane' && !veh.grounded && Math.hypot(veh.pos.x - L.x, veh.pos.z - L.z) < s.r) this.advance();
+    }
+    if (s.type === 'land') {
+      const L = locById.airstrip;
+      if (veh && veh.type === 'plane' && veh.grounded && veh.speed < 2 && Math.hypot(veh.pos.x - L.x, veh.pos.z - L.z) < 280) this.advance();
+    }
     if (s.type === 'collect' || s.type === 'killTag') { this._t = (this._t || 0) + dt; if (this._t > 0.5) { this._t = 0; this.check(); } }
     if (s.type === 'killId' && s.id === 'crane') {
       const c = G.entities.find((e) => e.id2 === 'crane');
@@ -130,6 +153,8 @@ export class Quests {
   onQuestComplete(id) {
     const G = this.game;
     if (id === 'm5') { this.flags.power = true; G.onPowerRestored(); }
+    if (id === 'm4b') { this.flags.wheels = true; setTimeout(() => G.ui.dialog(DIALOGS.jeep_done, null, true), 1500); }
+    if (id === 'm7b') { this.flags.avgas = true; setTimeout(() => G.ui.dialog(DIALOGS.plane_done, null, true), 1500); }
   }
 
   markerPos() {
@@ -144,6 +169,9 @@ export class Quests {
         const it = G.structures.interactables.find((i) => (s.id ? i.id === s.id : i.action === s.action));
         return it ? v.copy(it.pos) : null;
       }
+      case 'drive': { let best = null, bd = Infinity; for (const v of G.vehicles.list) if (v.type !== 'plane') { const d = v.pos.distanceTo(G.player.pos); if (d < bd) { bd = d; best = v; } } return G.player.vehicle ? null : best ? v.copy(best.pos) : null; }
+      case 'flyTo': { const L = locById[s.loc]; return v.set(L.x, G.terrain.getHeight(L.x, L.z) + 40, L.z); }
+      case 'land': { const L = locById.airstrip; return v.set(L.x, G.terrain.getHeight(L.x, L.z), L.z); }
       case 'killTag': { const L = locById[s.tag.split(':')[1]]; return v.set(L.x, G.terrain.getHeight(L.x, L.z), L.z); }
       case 'killId': { const c = G.entities.find((e) => e.id2 === s.id && e.alive); return c ? v.copy(c.pos) : null; }
       case 'tame': case 'mount': {

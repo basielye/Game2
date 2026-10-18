@@ -112,8 +112,8 @@ float cloudDensity(vec2 p, float cover) {
 void main() {
   vec3 d = normalize(vDir);
   vec3 col = skyLUT(uLUT, d);
-  // ground below horizon fades to a dark haze
-  if (d.y < 0.0) col = mix(col, col * 0.35, smoothstep(0.0, -0.2, d.y));
+  // below the horizon (seen when flying): match the aerial-perspective haze the fog paints on distant ground and sea
+  if (d.y < 0.0) col = skyLUT(uLUT, normalize(vec3(d.x, 0.035, d.z))) * mix(1.0, 0.8, smoothstep(0.0, -0.4, d.y));
   float sd = dot(d, uSunDir);
   // sun disk with limb darkening, dimmed by atmosphere (sun colour carries transmittance)
   float disk = smoothstep(0.99985, 0.99993, sd);

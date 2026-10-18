@@ -5,7 +5,7 @@ import { EffectComposer, RenderPass, EffectPass, BloomEffect, ToneMappingEffect,
 import { N8AOPostPass } from 'n8ao';
 
 const gradeFrag = /* glsl */`
-uniform float uTime, uDeadEye, uDamage, uVignette, uSat, uContrast, uGrain, uFade, uNight, uRays;
+uniform float uTime, uDeadEye, uDamage, uVignette, uSat, uContrast, uGrain, uFade, uNight, uRays, uBlur;
 uniform vec2 uSun; uniform vec3 uSunCol;
 float h12(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233))) * 43758.5453); }
 void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
@@ -23,6 +23,12 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor)
       decay *= 0.95;
     }
     col += uSunCol * illum * (uRays / 32.0) * 0.7;
+  }
+  // speed blur: radial streaks toward the frame edges while driving / flying fast
+  if (uBlur > 0.01) {
+    vec3 acc = col; float wsum = 1.0;
+    for (int i = 1; i <= 6; i++) { float k = float(i) / 6.0; vec2 o = dc * k * uBlur * 0.045 * smoothstep(0.1, 0.5, length(dc)); acc += texture2D(inputBuffer, uv - o).rgb; wsum += 1.0; }
+    col = acc / wsum;
   }
   // subtle lens chromatic aberration near the frame edges
   float ca = (0.0008 + uDeadEye * 0.004) * dot(dc, dc) * 4.0;
@@ -51,7 +57,7 @@ class GradeEffect extends Effect {
       ['uTime', new THREE.Uniform(0)], ['uDeadEye', new THREE.Uniform(0)], ['uDamage', new THREE.Uniform(0)],
       ['uVignette', new THREE.Uniform(0.3)], ['uSat', new THREE.Uniform(1.1)], ['uContrast', new THREE.Uniform(1.06)],
       ['uGrain', new THREE.Uniform(0.025)], ['uFade', new THREE.Uniform(0)], ['uNight', new THREE.Uniform(0)],
-      ['uRays', new THREE.Uniform(0)], ['uSun', new THREE.Uniform(new THREE.Vector2(0.5, 0.5))], ['uSunCol', new THREE.Uniform(new THREE.Color(1, 0.9, 0.7))],
+      ['uRays', new THREE.Uniform(0)], ['uBlur', new THREE.Uniform(0)], ['uSun', new THREE.Uniform(new THREE.Vector2(0.5, 0.5))], ['uSunCol', new THREE.Uniform(new THREE.Color(1, 0.9, 0.7))],
     ]);
     super('GradeEffect', gradeFrag, { uniforms: u, blendFunction: BlendFunction.NORMAL });
   }

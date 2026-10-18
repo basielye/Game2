@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { noise } from '../core/noise.js';
 import { clamp, lerp, smoothstep } from '../core/math.js';
-import { LOCATIONS, ROADS, WORLD_SIZE } from '../data/world.js';
+import { LOCATIONS, ROADS, WORLD_SIZE, RUNWAY } from '../data/world.js';
 import { getTex } from '../core/textures.js';
 
 const N = 512; // cells per side
@@ -141,6 +141,15 @@ export class Terrain {
             h = lerp(h, L.h, w);
             fm = Math.max(fm, w);
           }
+        }
+        // runway: a long flat strip with graded shoulders
+        {
+          const R = RUNWAY, c = Math.cos(R.yaw), sn = Math.sin(R.yaw);
+          const dx = x - R.x, dz = z - R.z;
+          const along = dx * c + dz * sn, across = -dx * sn + dz * c;
+          const ea = Math.max(0, Math.abs(along) - R.len / 2), ec = Math.max(0, Math.abs(across) - R.w / 2 - 6);
+          const d = Math.hypot(ea, ec);
+          if (d < 40) { const w = 1 - smoothstep(0, 40, d); h = lerp(h, R.h, w); fm = Math.max(fm, w); }
         }
         flatMask[idx] = fm;
         heights[idx] = h;

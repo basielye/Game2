@@ -335,7 +335,7 @@ export class UI {
   }
 
   showEndingChoice() {
-    this.panel(`<div class="endchoice"><h3>The Last Frontier</h3><p>The boat is fuelled. Kestrel Island waits to the west. Haven waits behind you.</p><button data-end="sail">Sail to Kestrel Island</button><button data-end="stay">Stay — Haven needs a ranger</button></div>`, false);
+    this.panel(`<div class="endchoice"><h3>The Last Frontier</h3><p>The boat is fuelled and the Caravan is ready. Kestrel Island waits to the west. Haven waits behind you.</p><button data-end="fly">Fly the Caravan to Kestrel</button><button data-end="sail">Sail to Kestrel Island</button><button data-end="stay">Stay — Haven needs a ranger</button></div>`, false);
   }
   ending(choice) {
     const G = this.game;

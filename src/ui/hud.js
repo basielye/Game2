@@ -28,6 +28,9 @@ export class HUD {
         <div id="clock"></div>
       </div>
       <div id="weapon"><div class="money"></div><div class="wname"></div><div class="ammo"></div><div class="slots"></div></div>
+      <div id="vehicle"><svg viewBox="0 0 200 200"><circle cx="100" cy="100" r="86" class="vbg"/><path class="arc" d="M 39 161 A 86 86 0 1 1 161 161"/><path class="arcv" d="M 39 161 A 86 86 0 1 1 161 161"/><line class="needle" x1="100" y1="100" x2="100" y2="30"/><circle cx="100" cy="100" r="6" class="hub"/></svg>
+        <div class="spd">0</div><div class="unit">km/h</div><div class="vname"></div>
+        <div class="avi"><div><span>ALT</span><b class="alt">0</b> m</div><div><span>THR</span><i class="thr"><u></u></i></div></div></div>
       <div id="crosshair"><div class="dot"></div><div class="ring"></div></div>
       <div id="hitmarker"></div>
       <div id="prompt"></div>
@@ -192,10 +195,24 @@ export class HUD {
       $('.ammo', we).innerHTML = ammo;
       $('.slots', we).innerHTML = P.weapons.map((k, i) => `<span class="${i === P.weaponIdx ? 'on' : ''}">${WEAPONS[k].slot}</span>`).join('');
     }
+    // vehicle gauges
+    const V = P.vehicle, ve = $('#vehicle', this.el);
+    ve.classList.toggle('on', !!V);
+    $('#weapon', this.el).style.opacity = V ? 0 : 1;
+    if (V) {
+      const kmh = Math.abs(V.speed) * 3.6, max = V.type === 'plane' ? 300 : 140;
+      const f = clamp(kmh / max, 0, 1);
+      $('.needle', ve).setAttribute('transform', `rotate(${-135 + f * 270} 100 100)`);
+      const arc = $('.arcv', ve); const L = 2 * Math.PI * 86 * 0.75; arc.style.strokeDasharray = L; arc.style.strokeDashoffset = L * (1 - f);
+      $('.spd', ve).textContent = Math.round(kmh);
+      $('.vname', ve).textContent = V.label;
+      ve.classList.toggle('plane', V.type === 'plane');
+      if (V.type === 'plane') { $('.alt', ve).textContent = Math.max(0, Math.round(V.altitude)); $('.thr u', ve).style.width = `${Math.round(V.throttle * 100)}%`; }
+    }
     // crosshair
     const ch = $('#crosshair', this.el);
     ch.classList.toggle('aim', P.aiming);
-    ch.classList.toggle('hide', P.mounted && !P.aiming);
+    ch.classList.toggle('hide', (P.mounted && !P.aiming) || !!P.vehicle);
     if (def.type === 'bow') ch.style.setProperty('--draw', 1 - P.drawT);
     // compass
     const deg = (P.camYaw * 180) / Math.PI;

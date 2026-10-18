@@ -168,3 +168,23 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 #title .menu button:focus { color: var(--gold); padding-left: 14px; outline: none; }
 #hint { position: absolute; left: 28px; top: 24%; max-width: 360px; padding: 12px 16px; font-size: 17px; line-height: 1.45; background: rgba(12,8,4,.78); border: 1px solid rgba(217,164,65,.5); border-left: 3px solid var(--gold); opacity: 0; transform: translateX(-20px); transition: all .5s; }
 #hint.show { opacity: 1; transform: none; } #hint b { color: var(--gold); font-weight: normal; }
+
+/* vehicle gauge */
+#vehicle { position: absolute; right: 26px; bottom: 22px; width: 190px; height: 190px; opacity: 0; transform: translateY(14px); transition: opacity .35s, transform .35s; }
+#vehicle.on { opacity: 1; transform: none; }
+#vehicle svg { position: absolute; inset: 0; }
+#vehicle .vbg { fill: rgba(14, 10, 6, .55); stroke: rgba(243, 226, 176, .25); stroke-width: 2; }
+#vehicle .arc { fill: none; stroke: rgba(243, 226, 176, .18); stroke-width: 8; stroke-linecap: round; }
+#vehicle .arcv { fill: none; stroke: var(--gold); stroke-width: 8; stroke-linecap: round; filter: drop-shadow(0 0 4px rgba(217, 164, 65, .7)); transition: stroke-dashoffset .08s linear; }
+#vehicle .needle { stroke: #f3e2b0; stroke-width: 3; stroke-linecap: round; transition: transform .08s linear; }
+#vehicle .hub { fill: #f3e2b0; }
+#vehicle .spd { position: absolute; left: 0; right: 0; top: 104px; text-align: center; font-family: var(--display); font-size: 36px; line-height: 1; color: var(--ink); }
+#vehicle .unit { position: absolute; left: 0; right: 0; top: 142px; text-align: center; font-family: var(--caps); font-size: 11px; letter-spacing: 2px; color: var(--ink-dim); }
+#vehicle .vname { position: absolute; left: -120px; right: 0; bottom: -18px; text-align: right; font-family: var(--caps); font-size: 12px; letter-spacing: 1px; color: var(--ink-dim); white-space: nowrap; }
+#vehicle .avi { display: none; position: absolute; right: 200px; bottom: 30px; width: 130px; font-family: var(--caps); font-size: 13px; color: var(--ink); text-align: right; }
+#vehicle.plane .avi { display: block; }
+#vehicle .avi div { margin: 6px 0; }
+#vehicle .avi span { color: var(--ink-dim); margin-right: 8px; font-size: 11px; letter-spacing: 2px; }
+#vehicle .avi b { font-family: var(--display); font-size: 22px; font-weight: normal; }
+#vehicle .avi i { display: inline-block; width: 70px; height: 8px; border: 1px solid rgba(243, 226, 176, .5); vertical-align: middle; }
+#vehicle .avi u { display: block; height: 100%; width: 0; background: var(--gold); }

@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { getTex } from '../core/textures.js';
 import { mulberry32 } from '../core/noise.js';
-import { locById, LOCATIONS } from '../data/world.js';
+import { locById, LOCATIONS, RUNWAY } from '../data/world.js';
 import { merge, mergeGeometries } from './geom.js';
 
 // Procedural PBR sets (tools/bake/gen_building_textures.py): albedo with baked AO, normal RGB + roughness in A.
@@ -475,6 +475,8 @@ export class Structures {
     this.buildLodge();
     this.buildHatchery();
     this.buildShipwreck();
+    this.buildMotorPool();
+    this.buildAirstrip();
     // T-Rex paddock fence (partly broken)
     const R = locById.rexpaddock;
     const pts = [];
@@ -806,6 +808,7 @@ export class Structures {
     this.box(g, 6, 0.4, 50, M.wood, 0, 0.4, 20, 0, true, true);
     for (let i = 0; i < 12; i++) for (const sx of [-2.8, 2.8]) this.cyl(g, 0.22, 0.22, 6, M.darkWood, sx, -5, i * 4 + 0, 6, false);
     this.building(L.x - 14, L.z - 10, 0.1, 10, 7, 4, { sign: 'DOCK OFFICE', y: L.h });
+    this.crate(L.x - 6, L.z - 18, 0.3, true, L.h, 'avgascrate');
     for (const [x, z] of [[8, -4], [10, -6], [-4, 6]]) this.crate(L.x + x, L.z + z, this.rng(), false);
     this.crate(L.x + 12, L.z - 2, 0, true);
     // a small boat moored at the end
@@ -822,7 +825,65 @@ export class Structures {
     this.building(L.x, L.z, -0.6, 14, 9, 4.2, { sign: 'SAFARI LODGE', roof: this.M.thatch, lit: true });
     this.addFire(this.group, L.x - 10, this.h(L.x - 10, L.z + 10), L.z + 10);
     this.crate(L.x + 9, L.z + 6, 0.5, true);
+    this.crate(L.x + 6, L.z - 8, 1.1, true, null, 'batterycrate');
     this.jeep(L.x + 12, L.z - 10, 0.4, false);
+  }
+
+  // Haven's motor pool: an open corrugated shed where the tour fleet sleeps.
+  buildMotorPool() {
+    const L = locById.motorpool, M = this.M;
+    const g = this.anchor(L.x, L.z, 0, L.h);
+    this.box(g, 15, 0.15, 8, M.concrete, 0, -0.1, 0.5, 0, false);
+    this.box(g, 15, 3.6, 0.25, M.metal, 0, 0, -3.5);                                  // back wall
+    for (const sx of [-1, 1]) this.box(g, 0.25, 3.6, 4, M.metal, sx * 7.5, 0, -1.5);  // side walls (rear half)
+    for (const sx of [-7.4, 0, 7.4]) this.box(g, 0.22, 3.7, 0.22, M.trim, sx, 0, 4.2);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(16, 0.08, 9.4), M.rust); roof.position.set(0, 3.95, 0.4); roof.rotation.x = -0.08; roof.castShadow = true; roof.receiveShadow = true; g.add(roof);
+    this.box(g, 3, 0.9, 0.7, M.darkWood, -4.5, 0, -2.9);                                // workbench
+    for (let i = 0; i < 4; i++) { const t = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.13, 8, 16), M.black); t.rotation.x = Math.PI / 2; t.position.set(5.6, 0.14 + i * 0.26, -2.6); t.castShadow = true; g.add(t); }
+    for (const [x, z] of [[6.6, 0.4], [6.8, 1.3], [-6.7, 0.8]]) this.barrel(g, x, 0, z);
+    this.sign(g, 'MOTOR POOL', 0, 3.2, -3.35, '#e8d8a0', 3.6);
+    g.updateMatrixWorld(true);
+    this.interactables.push({ pos: new THREE.Vector3(L.x - 4, (L.h || 0) + 1, L.z + 4.6), radius: 3.6, label: 'Install the battery in the Jeep', action: 'repairJeep', id: 'jeep' });
+  }
+
+  // The supply airstrip: arched hangar, tower shack, windsock, fuel drums, runway edge lights.
+  buildAirstrip() {
+    const R = RUNWAY, M = this.M;
+    const c = Math.cos(R.yaw), s = Math.sin(R.yaw);
+    const nx = -s, nz = c; // runway normal (north side)
+    const at = (along, across) => [R.x + c * along + nx * across, R.z + s * along + nz * across];
+    const yaw = -R.yaw; // align local x with the runway
+    // hangar
+    const [hx, hz] = at(-R.len / 2 + 70, -44);
+    const g = this.anchor(hx, hz, yaw + Math.PI, R.h);
+    const shell = new THREE.Mesh(new THREE.CylinderGeometry(11, 11, 26, 28, 1, true, -Math.PI / 2, Math.PI), M.metal);
+    shell.rotation.x = Math.PI / 2; shell.position.set(0, 0, 0); shell.castShadow = true; shell.receiveShadow = true; g.add(shell);
+    const back = new THREE.Mesh(new THREE.CircleGeometry(11, 28, 0, Math.PI), M.darkWood); back.position.set(0, 0, -13); g.add(back);
+    for (const sx of [-1, 1]) this.colliders.addBox(hx + Math.cos(yaw + Math.PI) * sx * 10.5, hz - Math.sin(yaw + Math.PI) * sx * 10.5, 0.6, 13, yaw + Math.PI, R.h, R.h + 8);
+    this.box(g, 22, 0.15, 26, M.concrete, 0, -0.08, 0, 0, false);
+    for (const sx of [-1, 1]) this.box(g, 3.5, 7.5, 0.3, M.darkWood, sx * 9.4, 0, 13);   // door leaves, slid open
+    for (let k = 0; k < 6; k++) this.barrel(g, -8 + (k % 3) * 0.75, 0, -10 + Math.floor(k / 3) * 0.75);
+    this.sign(g, 'ISLA NUBLAR AIR SERVICE', 0, 9.4, 13.2, '#f3e2b0', 9);
+    // tower shack + windsock
+    const [tx, tz] = at(-R.len / 2 + 120, -36);
+    this.building(tx, tz, yaw + Math.PI, 6, 5, 3.4, { roof: M.roofRed, porch: false, sign: 'FLIGHT OPS', y: R.h });
+    const [wx, wz] = at(R.len / 2 - 60, 26);
+    const wg = this.anchor(wx, wz, 0, R.h);
+    this.cyl(wg, 0.06, 0.08, 6, M.metal, 0, 0, 0, 6, false);
+    const sock = new THREE.Mesh(new THREE.ConeGeometry(0.45, 2.4, 12, 1, true), new THREE.MeshStandardMaterial({ color: 0xe86a1a, roughness: 0.9, side: THREE.DoubleSide }));
+    sock.rotation.z = Math.PI / 2 - 0.1; sock.position.set(1.2, 5.8, 0); sock.castShadow = true; wg.add(sock);
+    // edge lights
+    for (let a = -R.len / 2; a <= R.len / 2; a += 30) for (const side of [-1, 1]) {
+      const [lx, lz] = at(a, side * (R.w / 2 + 1.5));
+      const lg = this.anchor(lx, lz, 0, R.h);
+      this.cyl(lg, 0.05, 0.07, 0.45, M.yellow, 0, 0, 0, 6, false);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), M.emissiveWarm); bulb.position.y = 0.5; lg.add(bulb);
+    }
+    // fuel drums by the Caravan and the refuel point
+    const [fx, fz] = at(-R.len / 2 + 25, -14);
+    const fg = this.anchor(fx, fz, yaw, R.h);
+    for (let k = 0; k < 5; k++) this.barrel(fg, (k % 3) * 0.75 - 0.75, 0, Math.floor(k / 3) * 0.75);
+    this.interactables.push({ pos: new THREE.Vector3(fx, R.h + 1, fz), radius: 5, label: 'Refuel the Caravan', action: 'refuel', id: 'plane' });
   }
 
   buildHatchery() {

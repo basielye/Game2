@@ -33,6 +33,8 @@ import { loadTerrainTextures } from './core/assets.js';
 import { loadPhotoscans } from './world/photoscans.js';
 import { buildFlora, foliageUniforms } from './world/flora.js';
 import { loadHumans, updateHumanLODs } from './entities/humanoid.js';
+import { Vehicles } from './entities/vehicles.js';
+import { buildRoads } from './world/roads.js';
 import { buildDino } from './entities/dinoModels.js';
 
 const QUALITY = {
@@ -111,6 +113,8 @@ class Game {
       this.scene.add(this.structures.group);
       this.pickups = new Pickups(this);
       this.scene.add(this.pickups.group);
+      this.roads = buildRoads(this.terrain);
+      this.scene.add(this.roads);
     });
     await step(0.7, 'Sculpting dinosaurs…', () => { for (const k of Object.keys(SPECIES)) { try { buildDino(k, 1, 0).mesh.geometry.dispose(); } catch (e) { console.warn('dino prewarm', k, e); } } });
     await step(0.72, 'Hatching dinosaurs…', () => {
@@ -120,6 +124,8 @@ class Game {
       this.entities.push(this.player);
       this.scene.add(this.player.group);
       this.cameraRig = new CameraRig(this.camera, this);
+      this.vehicles = new Vehicles(this);
+      this.scene.add(this.vehicles.group);
       this.inventory = new Inventory(this);
       this.population = new Population(this);
       this.quests = new Quests(this);
@@ -314,7 +320,7 @@ class Game {
         if (!e.alive && !e.lootTaken && d < reach + 1.5) consider(d - 1, { type: 'harvest', e, label: `Harvest ${e.flyer ? 'Pteranodon' : SPECIES[e.kindName].label}` });
         else if (e.alive && e.tamed && d < reach + 1) consider(d, { type: 'ride', e, label: 'Ride  <kbd>F</kbd>', key: 'F' });
         else if (e.alive && e.def.mountable && !e.tamed && d < reach + 2.5 && e.state !== 'flee') {
-          consider(d, this.inventory.count('bait') > 0 ? { type: 'tame', e, label: 'Hold <kbd>E</kbd> to tame (uses 1 Meat Bait)' } : { type: 'none', label: 'You need Meat Bait to tame this animal' });
+          consider(d - 1.5, this.inventory.count('bait') > 0 ? { type: 'tame', e, label: 'Hold <kbd>E</kbd> to tame (uses 1 Meat Bait)' } : { type: 'none', label: 'You need Meat Bait to tame this animal' });
         }
       }
     }
@@ -325,21 +331,41 @@ class Game {
     }
     const pk = this.pickups.nearest(pp);
     if (pk) consider(pk.pos.distanceTo(pp) + 0.3, { type: 'pickup', p: pk, label: pk.label });
+    const veh = this.vehicles.nearest(pp);
+    if (veh) consider(Math.hypot(veh.pos.x - pp.x, veh.pos.z - pp.z) - (veh.type === 'plane' ? 4 : 2), { type: 'vehicle', v: veh, label: `${veh.type === 'plane' ? 'Fly' : 'Drive'} ${veh.label}  <kbd>F</kbd>`, key: 'F' });
     return best;
   }
 
   handleInteraction(dt) {
     const I = this.input;
-    const it = this.findInteraction();
+    let it = this.findInteraction();
+    // keep taming the same animal while E is held, even if a pickup or herd-mate is momentarily closer
+    const tt = this.tameTarget;
+    if (tt && I.key('KeyE') && tt.alive && !tt.tamed && tt.pos.distanceTo(this.player.pos) < tt.radius + 6) it = { type: 'tame', e: tt, label: 'Hold <kbd>E</kbd> to tame (uses 1 Meat Bait)' };
+    else if (!I.key('KeyE')) this.tameTarget = null;
     const P = this.player;
     if (P.mounted) { this.hud.prompt('<kbd>F</kbd> Dismount'); this.hud.progress(0); return; }
+    if (P.vehicle) {
+      this.hud.prompt(P.vehicle.type === 'plane' ? '<kbd>W</kbd>/<kbd>S</kbd> throttle · mouse pitch & roll · <kbd>A</kbd>/<kbd>D</kbd> rudder · <kbd>F</kbd> exit' : '<kbd>Space</kbd> handbrake · <kbd>F</kbd> exit');
+      this.hud.progress(0); return;
+    }
     if (!it) { this.hud.prompt(''); this.hud.progress(0); this.tameT = 0; return; }
     this.hud.prompt(it.key ? it.label : (it.type === 'none' ? it.label : `<kbd>E</kbd> ${it.label.replace('Hold <kbd>E</kbd> to', 'Hold to')}`));
     if (it.type === 'ride') { if (I.hit('KeyF') || I.hit('KeyE')) { P.mount(it.e); this.events.emit('mount', {}); } return; }
+    if (it.type === 'vehicle') {
+      if (I.hit('KeyF') || I.hit('KeyE')) {
+        const lock = this.vehicleLock(it.v);
+        if (lock) { this.hud.toast(lock); return; }
+        P.enterVehicle(it.v);
+        this.hint(it.v.type === 'plane' ? 'fly' : 'drive', it.v.type === 'plane' ? 'Push the throttle with <kbd>W</kbd>. Above ~120 km/h pull the mouse back to lift off. Bank with the mouse to turn; <kbd>A</kbd>/<kbd>D</kbd> work the rudder.' : '<kbd>W</kbd>/<kbd>S</kbd> drive and brake, <kbd>A</kbd>/<kbd>D</kbd> steer, <kbd>Space</kbd> handbrake to slide. Ramming small animals hurts them — ramming a triceratops hurts you.');
+      }
+      return;
+    }
     if (it.type === 'tame') {
       if (I.key('KeyE')) {
         this.tameT = (this.tameT || 0) + dt;
-        it.e.desiredSpeed = 0; it.e.state = 'graze'; it.e.anim.eat = 1;
+        this.tameTarget = it.e;
+        it.e.desiredSpeed = 0; it.e.state = 'graze'; it.e.anim.eat = 1; it.e.tameHoldT = 0.3;
         this.hud.progress(this.tameT / 2.5);
         P.rig.anim.interact = damp(P.rig.anim.interact, 1, 6, dt);
         if (this.tameT >= 2.5) {
@@ -398,6 +424,8 @@ class Game {
         if (this.looted.has(it.id)) { this.hud.toast('Already searched'); return; }
         if (it.id === 'fusecrate') { if (!(step && step.id === 'fusecrate')) { this.hud.toast('Locked tight. Black Fang property.'); return; } this.inventory.add('fuse', 1); }
         else if (it.id === 'labcrate') { if (!(step && step.id === 'labcrate')) { this.hud.toast('Nothing useful right now.'); return; } this.inventory.add('radioPart', 1); }
+        else if (it.id === 'batterycrate') { if (!(step && step.id === 'batterycrate')) { this.hud.toast('A heavy truck battery. No use to you yet.'); return; } this.inventory.add('battery', 1); }
+        else if (it.id === 'avgascrate') { if (!(step && step.id === 'avgascrate')) { this.hud.toast('Drums marked AVGAS 100LL. Nothing here flies… yet.'); return; } this.inventory.add('avgas', 1); }
         else if (it.id === 'cranecrate') { if (!(step && step.id === 'cranecrate')) { this.hud.toast('Locked. Crane keeps the key.'); return; } this.inventory.add('money', 200); this.inventory.add('rifleAmmo', 16); }
         else {
           const table = [['pistolAmmo', 6, 12], ['rifleAmmo', 4, 8], ['arrow', 4, 8], ['bandage', 1, 2], ['money', 5, 20], ['flint', 2, 3], ['amber', 1, 1], ['tonic', 1, 1], ['herb', 1, 2]];
@@ -434,6 +462,19 @@ class Game {
         if (!(step && step.action === 'radio')) { this.hud.toast(this.inventory.count('radioPart') ? '' : 'The transmitter needs a crystal oscillator.'); return; }
         this.inventory.remove('radioPart', 1);
         this.ui.dialog(DIALOGS.radio_call, () => this.events.emit('interact', { action: 'radio', id: 'radio' }));
+        break;
+      case 'repairJeep':
+        if (!(step && step.action === 'repairJeep')) { this.hud.toast(this.quests.flags.wheels ? 'The Jeep purrs like it\'s 1993.' : 'The Jeep\'s battery is dead.'); return; }
+        this.inventory.remove('battery', 1); this.quests.flags.wheels = true; it.done = true;
+        this.audio.engineStart?.('jeep'); setTimeout(() => this.audio.engineStop?.(), 1800);
+        this.hud.subtitle('The engine coughs, catches, and settles into a rough idle.', 4);
+        this.events.emit('interact', { action: 'repairJeep', id: 'jeep' });
+        break;
+      case 'refuel':
+        if (!(step && step.action === 'refuel')) { this.hud.toast(this.quests.flags.avgas ? 'Tanks are full.' : 'You need aviation fuel.'); return; }
+        this.inventory.remove('avgas', 1); this.quests.flags.avgas = true; it.done = true;
+        this.hud.subtitle('Fuel gurgles into the wing tanks. The Caravan smells like the old days.', 4);
+        this.events.emit('interact', { action: 'refuel', id: 'plane' });
         break;
       case 'boat':
         if (!(step && step.action === 'boat')) { this.hud.toast('The boat has no fuel. Not yet.'); return; }
@@ -501,6 +542,7 @@ class Game {
     const src = this.player.lastAttacker;
     const cause = src ? (src.kind === 'dino' ? `Killed by a ${src.flyer ? 'Pteranodon' : SPECIES[src.kindName].label}.` : src.role === 'infected' ? 'Torn apart by the Infected.' : `Gunned down by ${src.name || 'a raider'}.`) : 'The island claimed you.';
     this.audio.ui('fail');
+    if (this.player.vehicle) this.player.exitVehicle(true);
     if (this.player.deadEye) this.combat.endDeadEye();
     setTimeout(() => { this.state = 'dead'; this.input.unlock(); this.hud.show(false); this.ui.showDeath(cause); }, 2600);
   }
@@ -535,17 +577,26 @@ class Game {
     this.hud.banner('FREE ROAM', 'The island is yours', 'Bounties, hunting and secrets await');
   }
 
+  // Story gates for the vehicles: the motor pool needs a battery, the Caravan needs avgas.
+  vehicleLock(v) {
+    const f = this.quests.flags;
+    if (this.quests.finished) return null;
+    if (v.type === 'plane') return f.avgas ? null : 'The Caravan\'s tanks are bone dry. It needs aviation fuel.';
+    return f.wheels ? null : 'The battery is long dead. Old Tobias might know where to find a new one.';
+  }
+
   // ---------- save / load ----------
   save(announce = false) {
     if (this.state === 'title' || !this.player.alive) return;
     const P = this.player, m = this.population.mount;
     const data = {
       v: 1, t: Date.now(),
-      player: { x: P.pos.x, z: P.pos.z, yaw: P.yaw, hp: P.hp, maxHp: P.maxHp, weapons: P.weapons, clip: P.ammoClip, upgrades: [...P.upgrades], weaponIdx: P.weaponIdx },
+      player: { x: P.vehicle ? P.vehicle.exitPoint(new THREE.Vector3()).x : P.pos.x, z: P.vehicle ? P.vehicle.exitPoint(new THREE.Vector3()).z : P.pos.z, yaw: P.yaw, hp: P.hp, maxHp: P.maxHp, weapons: P.weapons, clip: P.ammoClip, upgrades: [...P.upgrades], weaponIdx: P.weaponIdx },
       inv: this.inventory.items, crafted: [...this.inventory.crafted],
       quests: this.quests.serialize(), cleared: [...this.population.cleared], looted: [...this.looted],
       taken: [...this.pickups.taken], discovered: [...this.hud.discovered], time: this.atmo.time, day: this.day,
       mount: m && m.alive ? { kind: m.kindName, x: m.pos.x, z: m.pos.z, scale: m.scale } : null, stats: this.stats, seen: [...this.seen],
+      vehicles: this.vehicles.serialize(),
     };
     if (store.set(SAVE_KEY, JSON.stringify(data))) { if (announce) this.hud.toast('Game saved'); } else if (announce) this.hud.toast('Could not save: browser storage is unavailable', 'danger');
   }
@@ -567,6 +618,7 @@ class Game {
     Object.assign(this.stats, d.stats);
     this.seen = new Set(d.seen || []);
     this.quests.load(d.quests);
+    if (d.vehicles) this.vehicles.load(d.vehicles);
     if (this.quests.flags.power) { this.onPowerRestored(); const pw = this.structures.interactables.find((i) => i.id === 'power'); if (pw) pw.done = true; }
     if (d.mount) {
       const herd = this.population.spawnHerd(d.mount.kind, d.mount.x, d.mount.z, 1);
@@ -777,6 +829,8 @@ class Game {
       if (I.hit('KeyB')) { if (!this.inventory.use('bandage')) this.hud.toast(this.inventory.count('bandage') ? 'Already at full health' : 'No bandages'); }
     }
     this.combat.update(dt, realDt, I);
+    this.vehicles.update(dt, this.atmo.isNight());
+    if (P.vehicle) { P.vehicle.seatWorld(P.pos); P.group.position.copy(P.pos); P.group.quaternion.copy(P.vehicle.group.quaternion); }
     this.updateEntities(dt);
     this.population.updateEcosystem(dt);
     this.quests.update(dt);
@@ -791,6 +845,8 @@ class Game {
     this.updateWorld(dt, realDt, P.pos);
     this.cameraRig.update(dt, realDt);
     this.audio.setListener(this.camera.position, P.camYaw);
+    if (P.vehicle) this.audio.engineUpdate(P.vehicle.engine, Math.abs(P.vehicle.speed));
+    this.post.u.uBlur.value = damp(this.post.u.uBlur.value, P.vehicle ? clamp((Math.abs(P.vehicle.speed) - (P.vehicle.type === 'plane' ? 35 : 14)) / 30, 0, 1) * 0.8 : 0, 4, realDt);
     const T = this.terrain;
     let coast = 0;
     for (const [dx, dz] of [[30, 0], [-30, 0], [0, 30], [0, -30]]) if (T.getHeight(P.pos.x + dx, P.pos.z + dz) < 0) coast += 0.25;

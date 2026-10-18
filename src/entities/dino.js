@@ -167,7 +167,7 @@ export class Dino extends Entity {
         if (e.category === 'player') {
           fear = e.crouching ? 9 : e.sprinting || e.mounted ? 30 : 18;
           // a crouched ranger carrying bait is curious, not scary
-          if (d.mountable && e.crouching && G.inventory.count('bait') > 0) fear = 2.2;
+          if (d.mountable && e.crouching && G.inventory.count('bait') > 0) fear = 0;
         }
         if (e.category === 'human' && e.faction === 'raider') fear = 20;
         if (e.category === 'infected') fear = 14;
@@ -203,6 +203,7 @@ export class Dino extends Entity {
     this.think -= dt;
     if (this.think <= 0) { this.think = 0.25 + Math.random() * 0.15; this._decide(); }
     this._act(dt);
+    if (this.tameHoldT > 0) { this.tameHoldT -= dt; this.desiredSpeed = 0; this.vel.x = this.vel.z = 0; } // held still while being calmed
     this._locomote(dt);
     this._animate(dt);
   }

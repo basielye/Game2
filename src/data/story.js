@@ -78,10 +78,22 @@ export const QUESTS = [
     reward: { money: 15, items: { bait: 2 } },
   },
   {
+    id: 'm4b', title: 'Wheels', giver: 'gunsmith',
+    desc: 'The park\'s tour fleet has been rusting in Haven\'s motor pool for three years. Tobias thinks one of them can still run.',
+    steps: [
+      { text: 'Talk to Old Tobias at the Gunsmith', type: 'talk', npc: 'gunsmith', dialog: 'tobias_jeep' },
+      { text: 'Find a working battery at the Safari Lodge', type: 'interact', action: 'loot', id: 'batterycrate', hint: 'The lodge is east along the paved park road. The tour office kept spares.' },
+      { text: 'Return to the Haven Motor Pool', type: 'goto', loc: 'motorpool', r: 14 },
+      { text: 'Install the battery in the Jeep', type: 'interact', action: 'repairJeep', id: 'jeep' },
+      { text: 'Take the Jeep out for a drive', type: 'drive', dist: 400, hint: 'Press F at the Jeep. W/S drive, A/D steer, Space handbrake. The paved park roads are smoothest.' },
+    ],
+    reward: { money: 30 },
+  },
+  {
     id: 'm5', title: 'Power to the Fences', giver: 'marshal',
     desc: 'With the fuse, the geothermal plant can power Haven\'s electric fence again.',
     steps: [
-      { text: 'Ride to the Geothermal Plant', type: 'goto', loc: 'geothermal', r: 120 },
+      { text: 'Drive or ride to the Geothermal Plant', type: 'goto', loc: 'geothermal', r: 120 },
       { text: 'Drive the raiders out of the plant', type: 'killTag', tag: 'camp:geothermal' },
       { text: 'Install the fuse and restore power', type: 'interact', action: 'power', id: 'power' },
       { text: 'Report to Old Tobias at the Gunsmith', type: 'talk', npc: 'gunsmith', dialog: 'tobias_rifle' },
@@ -111,8 +123,21 @@ export const QUESTS = [
     reward: { money: 150, items: { rexTooth: 0 } },
   },
   {
+    id: 'm7b', title: 'Wings over Nublar', giver: 'marshal',
+    desc: 'Crane\'s logbook mentions the park\'s supply plane — still in its hangar at the old airstrip. A plane could reach Kestrel in two hours, not three days.',
+    steps: [
+      { text: 'Talk to Marshal Rourke', type: 'talk', npc: 'marshal', dialog: 'marshal_plane' },
+      { text: 'Collect the avgas from the East Dock fuel store', type: 'interact', action: 'loot', id: 'avgascrate', hint: 'The fuel store is beside the dock office.' },
+      { text: 'Get to the Nublar Airstrip', type: 'goto', loc: 'airstrip', r: 240, hint: 'South-west of the bunker. Take a car.' },
+      { text: 'Refuel the Caravan', type: 'interact', action: 'refuel', id: 'plane' },
+      { text: 'Fly over the radio tower on Mount Sibo', type: 'flyTo', loc: 'tower', r: 220, hint: 'W for throttle. Past 120 km/h, pull the mouse back. Bank with the mouse to turn.' },
+      { text: 'Land back on the airstrip', type: 'land', hint: 'Line up with the runway, ease off the throttle, keep the nose up and the descent gentle.' },
+    ],
+    reward: { money: 100 },
+  },
+  {
     id: 'm8', title: 'The Last Frontier', giver: null,
-    desc: 'The boat at East Dock is ready. Kestrel Island is three days\' sail.',
+    desc: 'The boat at East Dock is fuelled. The Caravan is ready on the airstrip. Kestrel Island is waiting.',
     steps: [
       { text: 'Go to the East Dock', type: 'goto', loc: 'docks', r: 40 },
       { text: 'Make your choice at the boat', type: 'interact', action: 'boat', id: 'boat' },
@@ -122,6 +147,29 @@ export const QUESTS = [
 ];
 
 export const DIALOGS = {
+  tobias_jeep: [
+    ['Old Tobias', 'Fences humming, lights on... you know what this town still hasn\'t got? Wheels.'],
+    ['Old Tobias', 'There\'s a whole tour fleet in the motor pool past the south gate. Jeeps, the big green Explorers. Three years of rain on them.'],
+    ['Ava', 'Engines?'],
+    ['Old Tobias', 'Engines are fine, I\'ve been turning them over by hand every month. It\'s the batteries — dead as a doornail.'],
+    ['Old Tobias', 'The Safari Lodge out east kept spares for the tour office. Bring me one and I\'ll show you something beautiful.'],
+  ],
+  jeep_done: [
+    ['Old Tobias', 'Listen to that. Like 1993 never ended.'],
+    ['Old Tobias', 'Keep her on the paved roads if you can. And if the big girl comes for you — floor it.'],
+  ],
+  marshal_plane: [
+    ['Marshal Rourke', 'Found this in Crane\'s cabin. His logbook. Look at the last page.'],
+    ['Ava', '"Caravan — hangar two, airstrip. Tanks dry. Avgas at the dock store." He was going to fly out.'],
+    ['Marshal Rourke', 'A plane could make Kestrel in two hours. The boat takes three days, and that\'s if the weather plays nice.'],
+    ['Ava', 'I flew supply runs for the park, back when there was a park. I can get her up.'],
+    ['Marshal Rourke', 'Then take her up. Make sure she flies before anybody bets their life on her.'],
+  ],
+  plane_done: [
+    ['Ava', 'Wheels down. She flies like a dream.'],
+    ['Radio', 'Nublar, this is Kestrel. We heard an engine on the wind. Was that you?'],
+    ['Ava', 'That was me. Keep that fire lit, Kestrel. One way or another, we\'re coming.'],
+  ],
   marshal_intro: [
     ['Marshal Rourke', 'Well I\'ll be damned. Ava Reyes. We had you down as raptor food.'],
     ['Ava', 'Bunker held. Food didn\'t. What happened to the fences, Marshal?'],
@@ -172,6 +220,7 @@ export const DIALOGS = {
 };
 
 export const ENDINGS = {
+  fly: ['Ava flew west at first light, the Caravan heavy with families and seed corn.', 'Below, Isla Nublar shrank to a green jewel ringed with surf — the paddocks, the lake, the herds moving through the morning mist.', 'Two hours later, a fire on the north point of Kestrel Island guided her down.', 'She went back for the others the next day. And the day after that.'],
   sail: ['Ava sailed west at dawn, with nine settlers aboard.', 'On the third night, she saw the fire on the north point of Kestrel Island.', 'Behind her, Isla Nublar faded into the mist — still wild, still beautiful.', 'Some nights, she swears she can still hear them roaring.'],
   stay: ['The boat left with the families. Ava stayed.', 'Someone had to ride the roads. Someone had to keep the fences humming.', 'Haven grew. The herds returned to the southern meadows.', 'And the last ranger of Isla Nublar kept watch over a world that belonged to the dinosaurs.'],
 };

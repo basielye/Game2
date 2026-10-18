@@ -165,6 +165,78 @@ export class Player extends Entity {
     this.rig.anim.mounted = 0;
   }
 
+  enterVehicle(v) {
+    if (this.mounted) this.dismount();
+    this.vehicle = v; v.driver = this;
+    this.aiming = false; this.crouching = false;
+    this.vehicleCtl = { throttle: 0, steer: 0, handbrake: false, pitch: 0, roll: 0, yaw: 0, brake: false };
+    this.camYaw = v.yaw; this.camPitch = -0.12;
+    for (const m of Object.values(this.weaponMeshes || {})) m.visible = false;
+    this.game.audio?.engineStart?.(v.type);
+    this.game.events.emit('vehicle', { v, enter: true });
+  }
+
+  exitVehicle(force = false) {
+    const v = this.vehicle;
+    if (!v) return;
+    if (!force && Math.abs(v.speed) > (v.type === 'plane' ? 3 : 9)) { this.game.hud.toast(v.type === 'plane' ? 'Land and stop before climbing out.' : 'Slow down before you jump out!'); return; }
+    if (!force && v.type === 'plane' && !v.grounded) return;
+    this.vehicle = null; v.driver = null;
+    v.exitPoint(this.pos);
+    this.pos.y = this.game.terrain.getHeight(this.pos.x, this.pos.z) + (force ? 0.4 : 0);
+    this.vy = 0; this.vel.set(0, 0, 0);
+    this.group.quaternion.identity();
+    this.yaw = v.yaw; this.group.rotation.set(0, this.yaw, 0);
+    const a = this.rig.anim; a.sit = 0; a.mounted = 0;
+    this.game.audio?.engineStop?.();
+    this.game.events.emit('vehicle', { v, enter: false });
+  }
+
+  _vehicleUpdate(dt, input) {
+    const v = this.vehicle, G = this.game, c = this.vehicleCtl, a = this.rig.anim;
+    if (input.hit('KeyF') || input.hit('KeyE')) { this.exitVehicle(); if (!this.vehicle) return; }
+    const k = (code) => input.key(code);
+    if (v.type === 'plane') {
+      // W/S throttle · mouse or arrows: pitch & roll · A/D rudder · Space wheel brakes
+      c.throttle = (k('KeyW') ? 1 : 0) - (k('KeyS') ? 1 : 0);
+      const sens = 0.012 * input.sensitivity;
+      c.pitch = clamp(input.mouse.dy * sens * (input.invertY ? -1 : 1) + ((k('ArrowUp') ? 1 : 0) - (k('ArrowDown') ? 1 : 0)), -1.4, 1.4);
+      c.roll = clamp(input.mouse.dx * sens + ((k('ArrowRight') ? 1 : 0) - (k('ArrowLeft') ? 1 : 0)), -1.4, 1.4);
+      c.yaw = (k('KeyA') ? 1 : 0) - (k('KeyD') ? 1 : 0);
+      c.brake = k('Space');
+      // camera hangs behind the aircraft
+      this.camYaw = dampAngle(this.camYaw, v.yaw, 4, dt);
+      this.camPitch = damp(this.camPitch, -0.14, 3, dt);
+    } else {
+      c.throttle = (k('KeyW') ? 1 : 0) - (k('KeyS') ? 1 : 0);
+      c.steer = (k('KeyA') ? 1 : 0) - (k('KeyD') ? 1 : 0);
+      c.handbrake = k('Space');
+      // free look with the mouse; the camera swings back behind the car when you stop looking around
+      const sens = 0.0022 * input.sensitivity;
+      this.camYaw -= input.mouse.dx * sens;
+      this.camPitch = clamp(this.camPitch - input.mouse.dy * sens * (input.invertY ? -1 : 1), -0.9, 0.5);
+      const kTurn = (k('ArrowLeft') ? 1 : 0) - (k('ArrowRight') ? 1 : 0);
+      if (kTurn) { this.camYaw += kTurn * 2.2 * dt; input.lastMouseT = performance.now(); }
+      if (performance.now() - input.lastMouseT > 900 && Math.abs(v.speed) > 2) {
+        const behind = v.speed >= 0 ? v.yaw : v.yaw + Math.PI;
+        this.camYaw = dampAngle(this.camYaw, behind, 2.5, dt);
+        this.camPitch = damp(this.camPitch, -0.12, 2, dt);
+      }
+    }
+    // sit in the seat
+    v.seatWorld(this.pos);
+    this.group.position.copy(this.pos);
+    this.group.quaternion.copy(v.group.quaternion);
+    this.yaw = v.yaw;
+    this.vel.copy(v.vel);
+    a.sit = damp(a.sit, 1, 10, dt); a.mounted = damp(a.mounted, 1, 10, dt);
+    a.speed = 0; a.aim = 0; a.crouch = 0; a.air = 0; a.swim = 0;
+    a.look = damp(a.look, clamp(angleDiff(this.yaw, this.camYaw), -0.9, 0.9) * 0.5, 5, dt);
+    animateHuman(this.rig, dt);
+    this.stamina = Math.min(this.maxStamina, this.stamina + dt * 20);
+    grassPlayer.value.copy(this.pos); playerPosRef.copy(this.pos);
+  }
+
   mount(dino) {
     this.mounted = dino;
     dino.rider = this;
@@ -188,6 +260,7 @@ export class Player extends Entity {
       return;
     }
     this.group.rotation.x = 0;
+    if (this.vehicle) return this._vehicleUpdate(dt, input);
     // ---- camera look ----
     const sens = 0.0022 * input.sensitivity * (this.aiming ? 0.6 : 1) * (G.timeScale < 0.9 ? 1 / Math.max(0.35, G.timeScale) * 0.5 : 1);
     this.camYaw -= input.mouse.dx * sens;
@@ -462,18 +535,20 @@ export class CameraRig {
     if (this.cinematic) return this._cinematic(realDt);
     const aiming = p.aiming && p.alive;
     const zoom = aiming && p.wdef.zoom;
-    let dist = p.mounted ? 4.6 + p.mounted.scale * (p.mounted.kindName === 'para' ? 2.2 : 0.8) : aiming ? (zoom ? 1.35 : 1.75) : p.swimming ? 3.2 : 3.7;
+    const veh = p.vehicle;
+    let dist = veh ? (veh.type === 'plane' ? 15 + veh.speed * 0.08 : 6.2 + Math.abs(veh.speed) * 0.05) : p.mounted ? 4.6 + p.mounted.scale * (p.mounted.kindName === 'para' ? 2.2 : 0.8) : aiming ? (zoom ? 1.35 : 1.75) : p.swimming ? 3.2 : 3.7;
     if (p.sprinting && !p.mounted) dist += 0.5;
     if (!p.alive) dist = 5;
     this.dist = damp(this.dist, dist, 8, realDt);
-    this.shoulder = damp(this.shoulder, aiming ? 0.62 : p.mounted ? 0.0 : 0.5, 8, realDt);
-    const targetFov = this.baseFov * (zoom ? 0.6 : aiming ? 0.82 : p.sprinting ? 1.08 : 1) + (p.mounted && p.mountInput.sprint ? 6 : 0);
+    this.shoulder = damp(this.shoulder, aiming ? 0.62 : p.mounted || veh ? 0.0 : 0.5, 8, realDt);
+    const targetFov = this.baseFov * (zoom ? 0.6 : aiming ? 0.82 : p.sprinting ? 1.08 : 1) + (p.mounted && p.mountInput.sprint ? 6 : 0) + (veh ? clamp(Math.abs(veh.speed) / 40, 0, 1) * 12 : 0);
     this.fov = damp(this.fov, targetFov, 6, realDt);
     this.cam.fov = this.fov;
     this.cam.updateProjectionMatrix();
     const pitch = p.camPitch, yaw = p.camYaw;
     const pivot = _v.copy(p.pos);
-    pivot.y += p.mounted ? 1.9 + p.mounted.scale * 0.6 : p.swimming ? 0.6 : p.rig.anim.crouch > 0.5 ? 1.15 : 1.55;
+    if (veh) pivot.copy(veh.pos).y += veh.type === 'plane' ? 3.2 : 1.9;
+    else pivot.y += p.mounted ? 1.9 + p.mounted.scale * 0.6 : p.swimming ? 0.6 : p.rig.anim.crouch > 0.5 ? 1.15 : 1.55;
     const dir = _v2.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
     const rightv = _v3.set(-Math.cos(yaw), 0, Math.sin(yaw));
     const shoulderPt = pivot.clone().addScaledVector(rightv, this.shoulder);

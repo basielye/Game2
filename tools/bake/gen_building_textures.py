@@ -164,5 +164,27 @@ def shingles():
     rough = 0.85 + 0.1 * mm
     save('shingles', alb, blur(h, 0.8) * 8, rough, 5.0, blur(ao, 1.0))
 
+# ------------------------------------------------------------------ weathered asphalt (tile 4 m)
+def asphalt():
+    r = np.random.default_rng(41)
+    base = spectral(N, 2.4, seed=42); fine = spectral(N, 0.6, seed=43)
+    grit = r.random((N, N))
+    stones = (grit > 0.985).astype(np.float32)
+    stones = blur(stones, 0.8)
+    l = 0.075 + 0.016 * base + 0.014 * fine + stones * 0.06
+    # crack network: thin lines along ridges of a stretched noise field
+    cr = spectral(N, 2.0, seed=44)
+    cracks = np.clip(1 - np.abs(cr) * 7, 0, 1) ** 2 * (spectral(N, 3.0, seed=45) > 0.2)
+    # tar-sealed patches and oil stains
+    patch = (spectral(N, 3.2, seed=46) > 1.1).astype(np.float32); patch = blur(patch, 2.0)
+    oil = np.clip(spectral(N, 2.6, seed=47) - 1.2, 0, 1)
+    l = l * (1 - cracks * 0.5) * (1 - patch * 0.25) * (1 - oil * 0.35)
+    alb = np.stack([l * 1.0, l * 0.99, l * 0.97], -1)
+    h = stones * 0.5 + fine * 0.08 - cracks * 0.6 + patch * 0.1
+    rough = np.clip(0.88 - stones * 0.15 - oil * 0.35 - patch * 0.08 + fine * 0.03, 0.35, 1)
+    save('asphalt', alb, h * 4, rough, 3.0, None)
+
 if __name__ == '__main__':
-    planks(); corrugated(); concrete(); shingles()
+    import sys
+    if 'asphalt' in sys.argv: asphalt()
+    else: planks(); corrugated(); concrete(); shingles(); asphalt()

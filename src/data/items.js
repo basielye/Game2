@@ -22,6 +22,8 @@ export const ITEMS = {
   pistolAmmo: { name: 'Revolver Rounds', icon: '•', stack: 60 },
   rifleAmmo: { name: 'Rifle Cartridges', icon: '▪', stack: 40 },
   fuse: { name: 'Plant Fuse', icon: '⚡', stack: 1, key: true },
+  battery: { name: 'Truck Battery', icon: '🔋', stack: 1, key: true },
+  avgas: { name: 'Avgas Jerrycans', icon: '⛽', stack: 1, key: true },
   radioPart: { name: 'Radio Crystal', icon: '📻', stack: 1, key: true },
 };
 
