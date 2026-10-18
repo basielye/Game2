@@ -606,6 +606,7 @@ class Game {
     d = store.json(SAVE_KEY, null);
     if (!d) return false;
     const P = this.player;
+    if (P.vehicle) P.exitVehicle(true);
     P.spawn(d.player.x, d.player.z, d.player.yaw);
     P.hp = d.player.hp; P.maxHp = d.player.maxHp; P.weapons = d.player.weapons; P.ammoClip = d.player.clip; P.upgrades = new Set(d.player.upgrades); P.weaponIdx = Math.min(d.player.weaponIdx, P.weapons.length - 1);
     this.inventory.items = d.inv; this.inventory.crafted = new Set(d.crafted);

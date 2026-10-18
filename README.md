@@ -39,12 +39,15 @@ Click the game to capture the mouse; **Esc** pauses. Xbox/PlayStation controller
 | **1–4 / wheel** | Machete · Bow · Revolver · Rifle |
 | **T** | Toggle venom arrows |
 | **E** | Interact · gather · talk · loot · harvest · *hold* to tame |
-| **F** | Mount / dismount |
+| **F** | Mount / dismount · enter / exit vehicles |
 | **H** | Whistle for your mount |
 | **L** | Lantern |
 | **G / B** | Eat food / use bandage |
 | **X** *(hold)* | Walk slowly |
 | **Tab · M · J** | Satchel & crafting · Map · Journal |
+
+**Driving:** W/S throttle & brake/reverse · A/D steer · Space handbrake (slide) · F exit · mouse looks around (the camera swings back behind the car).
+**Flying the Caravan:** W/S throttle · mouse (or arrow keys) pitch & roll · A/D rudder · Space wheel brakes · F exit on the ground. Rotate past ~120 km/h; land gently with the nose up.
 
 **Gamepad:** sticks move/look · LT aim · RT fire · A jump · B crouch · X interact/reload · Y mount · LB/RB weapons · L3 sprint · R3 Dead Eye · D-pad whistle/bandage/eat/lantern · View satchel · Menu pause.
 
@@ -70,7 +73,18 @@ Click the game to capture the mouse; **Esc** pauses. Xbox/PlayStation controller
 
 **Field Guide & onboarding** — every species is documented the first time you get a good look at it; one-time contextual hints teach gathering, crafting, stealth, Dead Eye and riding exactly when they first matter.
 
+**Story** — ten chapters: wake up in the bunker, reach Haven, break the Black Fang, tame a mount, get the old tour Jeep running, restore the fences, answer a radio call from Kestrel Island, bring down Silas Crane, fly the park's bush plane again — then choose: fly, sail, or stay.
+
 **Survival systems** — gathering (wood, fiber, flint, herbs, berries, amber), crafting (bow, arrows, venom arrows, bandages, bait, tonics, hide upgrades), hunting and harvesting, cooking at campfires, sleeping, trading, bounties, collectibles, fast travel, autosave.
+
+## Vehicles
+
+![Vehicles](docs/screens/vehicles.jpg)
+
+- **Park Jeep** and **Tour Explorer** in the Haven Motor Pool (plus strays at the Safari Lodge and East Dock): arcade physics with weight transfer, slides, jumps and crashes. Ram a compy and it goes flying; ram a triceratops and it's your car that crumples.
+- **Cessna Caravan "N-ISLA"** at the Nublar Airstrip: take off, bank over the island, buzz the T-Rex, land back on the runway — or crash spectacularly.
+- Paved park roads with worn markings, a full runway with threshold paint and edge lights, headlights at night, engine audio, speed blur, speedometer and altimeter.
+- Cars unlock in the chapter *Wheels*; the plane in *Wings over Nublar*. After the story everything is yours.
 
 ## Graphics & performance
 

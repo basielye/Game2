@@ -619,13 +619,17 @@ export class Structures {
     const g = this.anchor(L.x, L.z, 0, L.h);
     // Two massive log pillars with torches, and a crossbeam sign. The gate doors hang open.
     for (const sx of [-7, 7]) {
-      this.box(g, 3, 14, 3, M.darkWood, sx, 0, 0);
+      // a bundle of raw bark-on logs bound with iron, on a stone footing
+      this.box(g, 3.6, 1.2, 3.6, M.stone, sx, -0.4, 0);
+      for (const [ox, oz, r] of [[0, 0, 0.8], [0.9, 0.7, 0.62], [-0.9, 0.7, 0.62], [0.9, -0.7, 0.62], [-0.9, -0.7, 0.62]]) this.cyl(g, r * 0.92, r, 14.5 - Math.abs(ox) * 0.6, M.bark, sx + ox, 0.6, oz, 14, r > 0.7);
+      this.colliders.addBox(g.position.x + sx, g.position.z, 1.6, 1.6, 0, g.position.y, g.position.y + 15);
+      for (const by of [3.5, 10.5]) { const band = new THREE.Mesh(new THREE.TorusGeometry(1.55, 0.07, 6, 24), M.rust); band.rotation.x = Math.PI / 2; band.position.set(sx, by, 0); g.add(band); }
       const cap = new THREE.Mesh(new THREE.ConeGeometry(2.4, 2.5, 4), M.thatch); cap.position.set(sx, 15.2, 0); cap.rotation.y = Math.PI / 4; g.add(cap);
       // torch braziers
       const br = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.3, 0.6, 8), M.black); br.position.set(sx + Math.sign(sx) * -1.6, 8, 2.2); g.add(br);
       this.addFireSprite(g, sx + Math.sign(sx) * -1.6, 8.6, 2.2);
     }
-    this.box(g, 18, 2.6, 1.5, M.darkWood, 0, 11.5, 0, 0, false);
+    for (const by of [11.2, 12.6]) { const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.66, 18.5, 14), M.bark); beam.rotation.z = Math.PI / 2; beam.position.set(0, by, 0); beam.castShadow = true; beam.receiveShadow = true; metreUV(beam.geometry, 4.0, 18.5, 0); g.add(beam); }
     this.sign(g, 'JURASSIC PARK', 0, 12.8, 0.8, '#ffb347', 12);
     const gateTex = M.darkWood;
     const d1 = new THREE.Mesh(new THREE.BoxGeometry(5.5, 9, 0.4), gateTex); d1.position.set(-8, 4.5, 3.4); d1.rotation.y = 1.2; d1.castShadow = true; g.add(d1);
